@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    { "collectionGroup": "applications", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "hifzRecords",  "queryScope": "COLLECTION", "fields": [ { "fieldPath": "studentId", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" } ] },
+    { "collectionGroup": "hifzRecords",  "queryScope": "COLLECTION", "fields": [ { "fieldPath": "teacherId", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" } ] },
+    { "collectionGroup": "attendance",   "queryScope": "COLLECTION", "fields": [ { "fieldPath": "groupId", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" } ] },
+    { "collectionGroup": "attendance",   "queryScope": "COLLECTION", "fields": [ { "fieldPath": "studentId", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" } ] },
+    { "collectionGroup": "payments",     "queryScope": "COLLECTION", "fields": [ { "fieldPath": "studentId", "order": "ASCENDING" }, { "fieldPath": "month", "order": "DESCENDING" } ] },
+    { "collectionGroup": "payments",     "queryScope": "COLLECTION", "fields": [ { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "dueDate", "order": "ASCENDING" } ] },
+    { "collectionGroup": "expenses",     "queryScope": "COLLECTION", "fields": [ { "fieldPath": "category", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" } ] },
+    { "collectionGroup": "behavior",     "queryScope": "COLLECTION", "fields": [ { "fieldPath": "studentId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "notifications","queryScope": "COLLECTION", "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "isRead", "order": "ASCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}

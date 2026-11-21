@@ -1,0 +1,9 @@
+node_modules/
+web/dist/
+web/dist-demo/
+web/.env.local
+*.log
+# Service account keys must never be committed
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.firebase/

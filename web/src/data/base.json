@@ -1,0 +1,13 @@
+{
+  "teachers": [
+    { "id": "T1", "name": "الشيخ سعد المنشاوي", "specialization": "تحفيظ وتجويد", "groupIds": ["G1"], "isActive": true },
+    { "id": "T2", "name": "الشيخ عبدالله الحصري", "specialization": "تحفيظ", "groupIds": ["G2"], "isActive": true },
+    { "id": "T3", "name": "الشيخ يوسف عبدالباسط", "specialization": "تأسيس", "groupIds": ["G3"], "isActive": true }
+  ],
+  "groups": [
+    { "id": "G1", "name": "حلقة المتقدمين", "level": "متقدم", "teacherId": "T1", "teacherName": "الشيخ سعد المنشاوي", "capacity": 15, "studentCount": 0, "room": "الغرفة 3", "time": "10:00" },
+    { "id": "G2", "name": "حلقة المتوسطين", "level": "متوسط", "teacherId": "T2", "teacherName": "الشيخ عبدالله الحصري", "capacity": 15, "studentCount": 0, "room": "الغرفة 2", "time": "08:00" },
+    { "id": "G3", "name": "حلقة المبتدئين", "level": "مبتدئ", "teacherId": "T3", "teacherName": "الشيخ يوسف عبدالباسط", "capacity": 15, "studentCount": 0, "room": "الغرفة 1", "time": "08:15" }
+  ],
+  "settings": { "name": "دار المناجاة لتحفيظ القرآن الكريم", "monthlyFee": 300, "currency": "ج.م", "academicYear": "١٤٤٨ / ٢٠٢٦", "timezone": "Africa/Cairo", "country": "مصر" }
+}

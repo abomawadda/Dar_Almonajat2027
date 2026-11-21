@@ -1,0 +1,1 @@
+{ "name": "دار المناجاة لتحفيظ القرآن الكريم", "short_name": "المناجاة", "dir": "rtl", "lang": "ar", "display": "standalone", "start_url": "/", "background_color": "#F7F6F3", "theme_color": "#8B6D2F", "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }] }

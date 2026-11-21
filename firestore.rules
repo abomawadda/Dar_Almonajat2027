@@ -1,0 +1,216 @@
+rules_version = '2';
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  دار المناجاة — Firestore Security Rules (v4)
+//  Extends dar_react_firebase.md with: supervisor role, behavior, exams,
+//  examResults, competitions, announcements, circulars, staffAttendance.
+//
+//  Key changes vs the earlier draft:
+//   • A user can no longer change their own role / isActive (was a privilege-escalation hole).
+//   • Parent/student access is based on parentId / studentId fields on each record,
+//     so list queries (where parentId == uid) are provable by the rules engine.
+//   • Public application form can only create a 'pending' request — not set decisions.
+//   • Circular acknowledgement: a user may only add their own uid to `acks`.
+// ═════════════════════════════════════════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Identity helpers ────────────────────────────────────────────────────
+    function signedIn()   { return request.auth != null; }
+    function userPath()   { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(userPath()); }
+    function profile()    { return get(userPath()).data; }
+    function role()       { return hasProfile() && profile().get('isActive', true) == true ? profile().role : 'none'; }
+
+    function isAdmin()      { return role() == 'admin'; }
+    function isSupervisor() { return role() == 'supervisor'; }
+    function isStaff()      { return isAdmin() || isSupervisor(); }
+    function isTeacher()    { return role() == 'teacher'; }
+    function isStudent()    { return role() == 'student'; }
+    function isParent()     { return role() == 'parent'; }
+
+    // A teacher/parent/student account may point at its record via teacherId/parentId/studentId;
+    // otherwise the record id is the auth uid.
+    function myTeacherId() { return profile().get('teacherId', request.auth.uid); }
+    function myParentId()  { return profile().get('parentId',  request.auth.uid); }
+    function myStudentId() { return profile().get('studentId', request.auth.uid); }
+    function linkedIds()   { return [request.auth.uid, profile().get('teacherId', ''), profile().get('parentId', ''), profile().get('studentId', '')]; }
+
+    function ownsChildRecord() { return isParent()  && resource.data.parentId  == myParentId(); }
+    function ownsStudentRecord(){ return isStudent() && resource.data.studentId == myStudentId(); }
+    function changesOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function isValidParentExcuse() {
+      let d = request.resource.data;
+      return d.status == 'excused'
+          && d.excusedByParent == true
+          && d.date is string && d.date.size() > 0 && d.date.size() <= 20
+          && d.studentId is string && d.studentId.size() > 0 && d.studentId.size() <= 128
+          && (!('excuseReason' in d) || d.excuseReason == null || (d.excuseReason is string && d.excuseReason.size() <= 200))
+          && (!('excuseNote' in d) || d.excuseNote == null || (d.excuseNote is string && d.excuseNote.size() <= 1000));
+    }
+    function audiences() {
+      return isTeacher() ? ['all', 'teachers']
+           : isStudent() ? ['all', 'students', 'students_parents']
+           : isParent()  ? ['all', 'parents', 'students_parents']
+           : ['all'];
+    }
+
+    // ── Users & roles ───────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if signedIn() && (request.auth.uid == userId || isStaff());
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+                    || (request.auth.uid == userId
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                             .hasAny(['role', 'isActive', 'teacherId', 'parentId', 'studentId']));
+      allow delete: if isAdmin();
+    }
+
+    // ── Admissions ──────────────────────────────────────────────────────────
+    match /applications/{appId} {
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.personalInfo.fullName is string
+                    && request.resource.data.personalInfo.fullName.size() > 4
+                    && request.resource.data.personalInfo.fullName.size() < 120
+                    && request.resource.data.guardianInfo.phone is string
+                    && !('decisionData' in request.resource.data);
+      allow read:   if isStaff();
+      allow update: if isAdmin()
+                    || (isSupervisor() && request.resource.data.status in ['pending', 'reviewing', 'interview_scheduled']);
+      allow delete: if isAdmin();
+    }
+
+    // ── People & structure ──────────────────────────────────────────────────
+    match /students/{studentId} {
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord()
+                    || (isStudent() && studentId == myStudentId());
+      allow create, delete: if isAdmin();
+      // Progress updates from a hifz session: supervisors for any student, teachers only for
+      // their own halaqa; neither may move a student to another teacher or group.
+      allow update: if isAdmin()
+                    || ((isSupervisor() || (isTeacher() && resource.data.academicInfo.teacherId == myTeacherId()))
+                        && changesOnly(['academicInfo'])
+                        && request.resource.data.academicInfo.teacherId == resource.data.academicInfo.teacherId
+                        && request.resource.data.academicInfo.groupId   == resource.data.academicInfo.groupId);
+    }
+    match /parents/{parentId} {
+      allow read:  if isStaff() || (isParent() && parentId == myParentId());
+      allow write: if isAdmin();
+    }
+    match /teachers/{teacherId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+    match /groups/{groupId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Learning & discipline ───────────────────────────────────────────────
+    match /attendance/{docId} {
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow create: if isStaff() || isTeacher()
+                    || (isParent()
+                        && isValidParentExcuse()
+                        && request.resource.data.parentId == myParentId()
+                        && docId == request.resource.data.date + '_' + request.resource.data.studentId
+                        && exists(/databases/$(database)/documents/students/$(request.resource.data.studentId))
+                        && get(/databases/$(database)/documents/students/$(request.resource.data.studentId)).data.parentId == myParentId());
+      allow update: if isStaff() || isTeacher()
+                    || (ownsChildRecord()
+                        && resource.data.excusedByParent == true
+                        && isValidParentExcuse()
+                        && request.resource.data.studentId == resource.data.studentId
+                        && request.resource.data.parentId  == resource.data.parentId
+                        && request.resource.data.date      == resource.data.date);
+      allow delete: if isStaff() || isTeacher();
+    }
+    match /staffAttendance/{docId} {
+      allow read:  if isStaff() || (isTeacher() && resource.data.staffId == myTeacherId());
+      allow write: if isStaff() || (isTeacher() && request.resource.data.staffId == myTeacherId());
+    }
+    match /hifzRecords/{recordId} {
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow create: if isStaff() || isTeacher();
+      allow update, delete: if isAdmin();
+    }
+    match /hifzProgress/{studentId} {
+      allow read:  if isStaff() || isTeacher() || ownsChildRecord()
+                   || (isStudent() && studentId == myStudentId());
+      allow write: if isStaff() || isTeacher();
+    }
+    match /behavior/{recId} {
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow create: if isStaff() || isTeacher();
+      allow update, delete: if isAdmin();
+    }
+    match /exams/{examId} {
+      allow read:   if signedIn();
+      allow create, update: if isStaff() || (isTeacher() && request.resource.data.teacherId == myTeacherId());
+      allow delete: if isAdmin() || (isTeacher() && resource.data.teacherId == myTeacherId());
+    }
+    match /examResults/{resId} {
+      allow read:  if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow write: if isStaff() || isTeacher();
+    }
+
+    // ── Recognition ─────────────────────────────────────────────────────────
+    match /certificates/{certId} {
+      allow read:  if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow write: if isStaff();
+    }
+    match /competitions/{compId} {
+      allow read:  if signedIn();
+      allow write: if isStaff();
+    }
+
+    // ── Communication ───────────────────────────────────────────────────────
+    match /announcements/{annId} {
+      allow read:   if isStaff() || (hasProfile() && resource.data.audience in audiences());
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+    match /circulars/{circId} {
+      allow read:   if isStaff() || (hasProfile() && resource.data.audience in audiences());
+      allow create: if isStaff();
+      allow update: if isStaff()
+                    || (hasProfile() && resource.data.audience in audiences()
+                        && changesOnly(['acks'])
+                        && request.resource.data.acks.toSet().difference(resource.data.acks.toSet()) == [request.auth.uid].toSet());
+      allow delete: if isAdmin();
+    }
+    match /notifications/{notifId} {
+      allow read:   if hasProfile() && resource.data.userId in linkedIds();
+      allow create: if isStaff() || isTeacher()
+                    || (isParent() && request.resource.data.type == 'excuse' && request.resource.data.isRead == false);
+      allow update: if hasProfile() && resource.data.userId in linkedIds() && changesOnly(['isRead']);
+      allow delete: if isAdmin();
+    }
+    match /messages/{convId} {
+      allow read:  if signedIn() && request.auth.uid in resource.data.participants;
+      allow write: if signedIn() && request.auth.uid in request.resource.data.participants;
+      match /messages/{msgId} {
+        allow read, write: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+      }
+    }
+
+    // ── Finance & settings ──────────────────────────────────────────────────
+    match /payments/{payId} {
+      allow read:  if isAdmin() || ownsChildRecord();
+      allow write: if isAdmin();
+    }
+    match /expenses/{expId} {
+      allow read, write: if isAdmin();
+    }
+    match /settings/{docId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
