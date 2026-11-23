@@ -23,7 +23,7 @@ export default function SettingsPage() {
 
   const resetDemo = async () => {
     if (!confirm('سيتم حذف كل البيانات التجريبية وإعادة البيانات الافتراضية. متابعة؟')) return
-    setBusy(true); db().reset(); await seedDemo(db()); setBusy(false)
+    setBusy(true); db().reset(); await seedDemo(db(), { history: true }); setBusy(false)
     toast('أُعيدت البيانات التجريبية', 'success')
   }
   const changePassword = async () => {

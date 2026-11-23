@@ -232,7 +232,7 @@ function TodaySummary({ students, actor }) {
       <div className="space-y-2.5">
         {rows.map((r, i) => r && (
           <Card key={students[i].id} className="p-4">
-            <div className="text-sm font-extrabold mb-1.5">{r.title}</div>
+            <div className="flex items-center justify-between mb-1.5"><span className="text-sm font-extrabold">{r.title}</span><Link to={`/student-report/${students[i].id}`} className="text-[11px] font-bold text-info">التقرير الشهري</Link></div>
             {r.empty ? <div className="text-xs text-ink-muted">لم يُسجَّل شيء اليوم بعد</div>
               : r.lines.map((l) => <div key={l} className="text-[12.5px] text-ink-soft leading-6">• {l}</div>)}
           </Card>
