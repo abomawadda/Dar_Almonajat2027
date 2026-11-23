@@ -3,10 +3,15 @@ import { useAuth } from '@/context/AuthProvider'
 import { useData } from '@/context/DataProvider'
 import { Page } from '@/components/layout/AppShell'
 import { Async, Avatar, Badge, Button, Card, Chips, EmptyState, Field, Icon, Input, ListItem, Select, Sheet, Skeleton, StatRow, Textarea, cx } from '@/components/ui'
-import { ATTENDANCE, EXCUSE_REASONS } from '@/config/constants'
+import { ATTENDANCE, EXCUSE_STATUS } from '@/config/constants'
 import { can } from '@/config/permissions'
 import { useAction } from '@/hooks/useAction'
-import { attendanceHistory, loadAttendanceDay, saveAttendanceDay, submitExcuse } from '@/services/academic'
+import { attendanceHistory, loadAttendanceDay, saveAttendanceDay } from '@/services/academic'
+import { excusesForDay } from '@/services/excuses'
+import { useToast } from '@/components/ui/Toast'
+import { ExcuseItem, ExcuseRequestSheet, ExcuseReview, useExcuses } from './Excuses'
+import QrCard from './QrCard'
+import QrScanner from './QrScanner'
 import { fmtDate, todayKey } from '@/lib/format'
 
 export default function AttendancePage() {
@@ -21,6 +26,11 @@ function RecordAttendance() {
   const [date, setDate] = useState(todayKey())
   const [groupId, setGroupId] = useState('')
   const [day, setDay] = useState(null) // { marks, excuses, saved }
+  const [requests, setRequests] = useState({})
+  const [scanOpen, setScanOpen] = useState(false)
+  const [lastScan, setLastScan] = useState('')
+  const toast = useToast()
+  const allExcuses = useExcuses(actor)
   const gid = groupId || myGroups[0]?.id
   const group = myGroups.find((g) => g.id === gid)
   const roster = (students || []).filter((s) => s.academicInfo?.groupId === gid)
@@ -29,7 +39,15 @@ function RecordAttendance() {
     if (!gid) return
     setDay(null)
     loadAttendanceDay(gid, date).then(setDay).catch(() => setDay({ marks: {}, excuses: {}, saved: false }))
-  }, [gid, date])
+    excusesForDay(gid, date).then(setRequests).catch(() => setRequests({}))
+  }, [gid, date, allExcuses])
+
+  const onScan = (id) => {
+    const s = roster.find((x) => x.id === id)
+    if (!s) { toast('هذا الطالب ليس في الحلقة المختارة', 'error'); return }
+    setDay((d) => ({ ...d, marks: { ...d.marks, [id]: 'present' } }))
+    setLastScan(s.personalInfo.fullName)
+  }
 
   const marks = day?.marks || {}
   const excuses = day?.excuses || {}
@@ -47,18 +65,24 @@ function RecordAttendance() {
         <Select value={gid} onChange={(e) => setGroupId(e.target.value)} className="h-11 text-[13px]">{myGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select>
       </div>
       {day?.saved && <div className="mx-4 mb-3 px-3 py-2.5 rounded-xl bg-ok-soft text-ok text-xs font-bold flex items-center gap-1.5"><Icon name="cloud-check-bold" />سُجّل حضور هذا اليوم — أي تعديل يُحدّث السجل</div>}
+      <ExcuseReview rows={(allExcuses || []).filter((e) => !gid || e.groupId === gid)} actor={actor} />
       <StatRow items={Object.entries(ATTENDANCE).map(([k, v]) => [counts[k], v.label, v.tone])} />
+      {day && roster.length > 0 && date === todayKey() && (
+        <div className="px-4 mb-3"><Button block variant="secondary" icon="qr-code-bold" onClick={() => setScanOpen(true)}>مسح بطاقات الحضور (QR)</Button></div>
+      )}
+      <QrScanner open={scanOpen} onClose={() => { setScanOpen(false); setLastScan('') }} onScan={onScan} lastName={lastScan} />
       {!day ? <Skeleton /> : roster.length ? (
         <>
           <Card className="mx-4 px-3">
             {roster.map((s) => {
-              const ex = excuses[s.id]
+              const req = requests[s.id]
+              const ex = excuses[s.id] || (req && { reason: req.reason, note: req.note, pending: req.status === 'pending' })
               return (
                 <div key={s.id} className="py-3 border-b last:border-0">
                   <div className="flex items-center gap-2.5 mb-2"><Avatar name={s.personalInfo.fullName} size={34} /><span className="text-sm font-bold flex-1 truncate">{s.personalInfo.fullName}</span></div>
                   {ex && (
                     <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-info-soft text-info text-[11.5px] font-bold">
-                      عذر من ولي الأمر: {ex.reason}{ex.note ? ` — ${ex.note}` : ''}
+                      {ex.pending ? 'عذر بانتظار الموافقة' : 'عذر من ولي الأمر'}: {ex.reason}{ex.note ? ` — ${ex.note}` : ''}
                     </div>
                   )}
                   <div className="flex bg-field rounded-xl p-0.5 gap-0.5">
@@ -94,11 +118,12 @@ function AttendanceHistory() {
   const filtered = (rows || []).filter((r) => actor.role !== 'parent' || childId === 'all' || r.studentId === childId)
   const present = filtered.filter((r) => r.status === 'present' || r.status === 'late').length
   const canExcuse = actor.role === 'parent' && (students || []).length > 0
+  const myExcuses = useExcuses(actor)
 
   return (
     <Page
       title={actor.role === 'student' ? 'حضوري' : 'حضور الأبناء'}
-      actions={canExcuse && <Button size="sm" icon="calendar-add-bold" onClick={() => setExcuseOpen(true)}>إبلاغ عن عذر</Button>}
+      actions={canExcuse && <Button size="sm" icon="calendar-add-bold" onClick={() => setExcuseOpen(true)}>تقديم عذر</Button>}
     >
       {actor.role === 'parent' && (students || []).length > 1 && (
         <Chips
@@ -106,6 +131,13 @@ function AttendanceHistory() {
           onChange={setChildId}
           options={[['all', 'كل الأبناء'], ...students.map((s) => [s.id, s.personalInfo.fullName.split(' ')[0]])]}
         />
+      )}
+      {(students || []).filter((s) => childId === 'all' || s.id === childId).map((s) => <div key={s.id} className="px-4 mb-3"><QrCard student={s} /></div>)}
+      {myExcuses?.length > 0 && (
+        <Card className="mx-4 mb-3 px-3">
+          <div className="text-xs font-extrabold text-ink-soft pt-3">طلبات الأعذار</div>
+          {myExcuses.slice(0, 5).map((e) => <ExcuseItem key={e.id} e={e} />)}
+        </Card>
       )}
       {rows && <StatRow items={[[filtered.length ? `${Math.round((present / filtered.length) * 100)}%` : '—', 'نسبة الحضور', 'ok'], [filtered.length, 'يوم مسجل'], [filtered.filter((r) => r.status === 'absent').length, 'غياب', 'bad']]} />}
       <Async data={rows && filtered} empty="لم يُسجل حضور بعد" emptyIcon="calendar-bold">
@@ -120,39 +152,7 @@ function AttendanceHistory() {
           ))}
         </Card>
       </Async>
-      {canExcuse && <ExcuseSheet open={excuseOpen} students={students} actor={actor} onClose={() => setExcuseOpen(false)} onSaved={load} />}
+      {canExcuse && <ExcuseRequestSheet open={excuseOpen} students={students} actor={actor} onClose={() => setExcuseOpen(false)} />}
     </Page>
-  )
-}
-
-function ExcuseSheet({ open, students, actor, onClose, onSaved }) {
-  const [studentId, setStudentId] = useState('')
-  const [date, setDate] = useState(todayKey())
-  const [reason, setReason] = useState(EXCUSE_REASONS[0])
-  const [note, setNote] = useState('')
-  const student = students.find((s) => s.id === (studentId || students[0]?.id))
-  const [save, busy] = useAction(() => submitExcuse({ student, date, reason, note }, actor), { success: 'تم إرسال الاستئذان للمحفظ' })
-
-  return (
-    <Sheet open={open} title="إبلاغ عن غياب بعذر" onClose={onClose}>
-      {students.length > 1 ? (
-        <Field label="الابن">
-          <Select value={student?.id || ''} onChange={(e) => setStudentId(e.target.value)}>
-            {students.map((s) => <option key={s.id} value={s.id}>{s.personalInfo.fullName}</option>)}
-          </Select>
-        </Field>
-      ) : (
-        <div className="mb-3.5 px-3 py-2.5 rounded-xl bg-field text-sm font-bold">{student?.personalInfo.fullName}</div>
-      )}
-      <Field label="التاريخ" required><Input type="date" min={todayKey()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-      <Field label="سبب الاستئذان" required>
-        <Select value={reason} onChange={(e) => setReason(e.target.value)}>
-          {EXCUSE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Select>
-      </Field>
-      <Field label="تفاصيل إضافية (اختياري)"><Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="أي توضيح للمحفظ…" /></Field>
-      <Button block icon="check-circle-bold" busy={busy} disabled={!student || !date}
-        onClick={async () => { if (await save()) { setNote(''); onSaved(); onClose() } }}>إرسال العذر</Button>
-    </Sheet>
   )
 }

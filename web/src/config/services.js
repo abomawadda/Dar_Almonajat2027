@@ -24,6 +24,7 @@ export const SERVICES = [
   { id: 'staff',        path: '/staff-attendance', label: 'حضور العاملين',   icon: 'user-check-rounded-bold',      tone: 'ok',     group: 'discipline', roles: ['admin', 'supervisor', 'teacher'] },
   { id: 'behavior',     path: '/behavior',         label: 'السلوك',          icon: 'star-bold',                    tone: 'ok',     group: 'discipline', roles: ALL },
   { id: 'honor',        path: '/honor-board',      label: 'لوحة الشرف والنقاط', icon: 'medal-ribbons-star-bold',  tone: 'gold',   group: 'motivation', roles: ALL },
+  { id: 'rewards',      path: '/rewards',          label: 'متجر الجوائز',    icon: 'gift-bold',                    tone: 'gold',   group: 'motivation', roles: ['admin', 'supervisor', 'student', 'parent'] },
   { id: 'certificates', path: '/certificates',     label: 'الشهادات',        icon: 'diploma-verified-bold',        tone: 'gold',   group: 'motivation', roles: ALL },
   { id: 'competitions', path: '/competitions',     label: 'المسابقات',       icon: 'cup-star-bold',                tone: 'warn',   group: 'motivation', roles: ALL },
   { id: 'announcements',path: '/announcements',    label: 'الإعلانات',       icon: 'bell-bold',                    tone: 'info',   group: 'comms',      roles: ALL },

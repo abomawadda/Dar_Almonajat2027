@@ -10,7 +10,7 @@ export const DEFAULT_POINT_RULES = {
   hifz: { excellent: 10, good: 6, average: 3, weak: 0 }, // per track recited (new / near / far)
   repeat: 0,          // new portion not accepted
   juzComplete: 50,    // completing a whole juz
-  attendance: { present: 2, late: 0, excused: 0, absent: -3 },
+  attendance: { present: 2, late: 0, excused: 0, absent: -3, early_leave: 0 },
   absenceStreak: 3    // consecutive absences that trigger an alert
 }
 export const POINT_SOURCES = { hifz: 'تسميع', attendance: 'حضور', behavior: 'سلوك', juz: 'إتمام جزء', exam: 'اختبار', manual: 'يدوي', redeem: 'استبدال' }

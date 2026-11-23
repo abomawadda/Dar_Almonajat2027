@@ -1,0 +1,19 @@
+rules_version = '2';
+// Uploads are limited to images/PDF up to 5 MB. Excuse attachments are written by the parent
+// (path carries the uid) and readable by any signed-in user who holds the link (the URL is stored
+// only on records the reader is already allowed to see).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function okFile() {
+      return request.resource.size < 5 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+    match /excuses/{uid}/{file=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid && okFile();
+    }
+    match /{all=**} {
+      allow read, write: if false;
+    }
+  }
+}

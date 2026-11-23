@@ -69,6 +69,8 @@ export async function seedDemo(db) {
     b.set('pointsBalance', id, { studentId: id, studentName: name, parentId, groupId: gid, groupName: g.name, balance: pts, earned: pts, months: { [ym]: Math.round(pts / 3) } })
     b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: countAyahs(lastJuzRanges(juz)), ranges: lastJuzRanges(juz), lastUpdated: ago(24) })
   })
+  ;[['مصحف التجويد الملوّن', 150, '📖', 5], ['حقيبة الدار', 120, '🎒', 10], ['قلم ومفكرة', 40, '🖊️', null], ['رحلة الأوائل', 400, '🎟️', 3]]
+    .forEach(([name, cost, icon, stock], i) => b.set('rewards', `R${i + 1}`, { name, cost, icon, stock, active: true }))
   base.teachers.forEach((x) => b.set('teachers', x.id, strip(x)))
   Object.values(groups).forEach((g) => b.set('groups', g.id, strip(g)))
   ;[
