@@ -15,7 +15,7 @@ export const SERVICE_GROUPS = [
 
 export const SERVICES = [
   { id: 'applications', path: '/applications',     label: 'طلبات الالتحاق', icon: 'clipboard-list-bold',          tone: 'warn',   group: 'admission',  roles: STAFF, badge: 'applications' },
-  { id: 'students',     path: '/students',         label: 'الطلبة',          icon: 'users-group-rounded-bold',     tone: 'info',   group: 'admission',  roles: ['admin', 'supervisor', 'teacher'] },
+  { id: 'students',     path: '/students',         label: 'الطلبة',          icon: 'users-group-rounded-bold',     tone: 'info',   group: 'admission',  roles: ['admin', 'supervisor', 'teacher', 'accountant'] },
   { id: 'record',       path: '/hifz/record',      label: 'تسجيل تسميع',     icon: 'microphone-3-bold',            tone: 'gold',   group: 'learning',   roles: ['admin', 'supervisor', 'teacher'] },
   { id: 'exams',        path: '/exams',            label: 'الامتحانات',      icon: 'document-add-bold',            tone: 'info',   group: 'learning',   roles: ALL },
   { id: 'hifzmap',      path: '/hifz-map',         label: 'خريطة الحفظ',     icon: 'map-bold',                     tone: 'gold',   group: 'learning',   roles: ALL },
@@ -31,8 +31,8 @@ export const SERVICES = [
   { id: 'circulars',    path: '/circulars',        label: 'التعميمات',       icon: 'document-text-bold',           tone: 'violet', group: 'comms',      roles: ALL, badge: 'circulars' },
   { id: 'notifications',path: '/notifications',    label: 'الإشعارات',       icon: 'bell-bing-bold',               tone: 'bad',    group: 'comms',      roles: ALL, badge: 'notifications' },
   { id: 'messages',     path: '/messages',         label: 'الرسائل',         icon: 'chat-round-dots-bold',         tone: 'info',   group: 'comms',      roles: ['admin', 'supervisor', 'teacher', 'parent'], badge: 'messages' },
-  { id: 'finance',      path: '/finance',          label: 'الخزينة',         icon: 'wallet-money-bold',            tone: 'violet', group: 'admin',      roles: ['admin'], ready: false },
-  { id: 'payments',     path: '/payments',         label: 'المدفوعات',       icon: 'card-bold',                    tone: 'violet', group: 'admin',      roles: ['admin', 'parent'], ready: false },
+  { id: 'finance',      path: '/finance',          label: 'الماليات والخزينة', icon: 'wallet-money-bold',          tone: 'violet', group: 'admin',      roles: ['admin', 'accountant'] },
+  { id: 'payments',     path: '/payments',         label: 'الرسوم والمدفوعات', icon: 'card-bold',                  tone: 'violet', group: 'admin',      roles: ['parent'] },
   { id: 'reports',      path: '/reports',          label: 'التقارير',        icon: 'chart-2-bold',                 tone: 'bad',    group: 'admin',      roles: STAFF, ready: false },
   { id: 'settings',     path: '/settings',         label: 'الإعدادات',       icon: 'settings-bold',                tone: 'muted',  group: 'admin',      roles: ALL }
 ]
@@ -46,6 +46,7 @@ export const BOTTOM_NAV = {
   supervisor: [['/dashboard', 'الرئيسية', 'home-smile-bold-duotone'], ['/students', 'الطلبة', 'users-group-rounded-bold'], ['/attendance', 'الحضور', 'checklist-minimalistic-bold'], ['/services', 'الخدمات', 'widget-5-bold']],
   teacher:    [['/dashboard', 'الرئيسية', 'home-smile-bold-duotone'], ['/students', 'طلابي', 'users-group-rounded-bold'], ['/attendance', 'الحضور', 'checklist-minimalistic-bold'], ['/services', 'الخدمات', 'widget-5-bold']],
   student:    [['/dashboard', 'الرئيسية', 'home-smile-bold-duotone'], ['/exams', 'امتحاناتي', 'document-add-bold'], ['/attendance', 'حضوري', 'checklist-minimalistic-bold'], ['/services', 'الخدمات', 'widget-5-bold']],
+  accountant: [['/dashboard', 'الرئيسية', 'home-smile-bold-duotone'], ['/finance', 'الماليات', 'wallet-money-bold'], ['/students', 'الطلبة', 'users-group-rounded-bold'], ['/services', 'الخدمات', 'widget-5-bold']],
   parent:     [['/dashboard', 'الرئيسية', 'home-smile-bold-duotone'], ['/behavior', 'السلوك', 'star-bold'], ['/notifications', 'الإشعارات', 'bell-bing-bold'], ['/services', 'الخدمات', 'widget-5-bold']]
 }
 

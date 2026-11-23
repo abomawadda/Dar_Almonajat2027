@@ -4,7 +4,7 @@ import { isStaffRole, audiencesFor } from '@/config/roles'
 
 /** actor: { uid, name, role, linkedId } — linkedId = teacherId / studentId / parentId. */
 export function studentScope(actor) {
-  if (isStaffRole(actor.role)) return {}
+  if (isStaffRole(actor.role) || actor.role === 'accountant') return {}
   if (actor.role === 'teacher') return { where: [['academicInfo.teacherId', '==', actor.linkedId]] }
   if (actor.role === 'parent') return { where: [['parentId', '==', actor.linkedId]] }
   return null // student reads their own document by id

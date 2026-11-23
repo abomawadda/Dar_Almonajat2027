@@ -15,19 +15,21 @@ const SHORTCUTS = {
   staff:   ['applications', 'students', 'attendance', 'record', 'behavior', 'exams', 'announcements', 'circulars'],
   teacher: ['record', 'attendance', 'behavior', 'exams', 'staff', 'circulars', 'announcements', 'certificates'],
   student: ['exams', 'certificates', 'attendance', 'behavior', 'competitions', 'announcements', 'honor', 'hifzmap'],
-  parent:  ['behavior', 'attendance', 'exams', 'certificates', 'announcements', 'circulars', 'payments', 'competitions']
+  parent:  ['behavior', 'attendance', 'exams', 'certificates', 'announcements', 'circulars', 'payments', 'competitions'],
+  accountant: ['finance', 'students', 'announcements', 'circulars', 'notifications', 'settings']
 }
 const VERSES = {
   staff: ['إِنَّا نَحْنُ نَزَّلْنَا الذِّكْرَ وَإِنَّا لَهُ لَحَافِظُونَ', 'الحجر ٩'],
   teacher: ['وَلَقَدْ يَسَّرْنَا الْقُرْآنَ لِلذِّكْرِ فَهَلْ مِن مُّدَّكِرٍ', 'القمر ١٧'],
   student: ['وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا', 'المزمل ٤'],
-  parent: ['وَقُل رَّبِّ زِدْنِي عِلْمًا', 'طه ١١٤']
+  parent: ['وَقُل رَّبِّ زِدْنِي عِلْمًا', 'طه ١١٤'],
+  accountant: ['وَأَوْفُوا الْكَيْلَ وَالْمِيزَانَ بِالْقِسْطِ', 'الأنعام ١٥٢']
 }
 
 export default function DashboardPage() {
   const { actor } = useAuth()
   const data = useData()
-  const kind = isStaffRole(actor.role) ? 'staff' : actor.role
+  const kind = isStaffRole(actor.role) ? 'staff' : VERSES[actor.role] ? actor.role : 'student'
   const [verse, ref] = VERSES[kind]
   const tiles = SHORTCUTS[kind].map((id) => SERVICES.find((s) => s.id === id)).filter((s) => s && s.roles.includes(actor.role))
 

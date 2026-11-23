@@ -30,6 +30,12 @@ export const COL = {
   POINTS_LEDGER: 'pointsLedger',
   POINTS_BALANCE: 'pointsBalance',
   PAYMENTS: 'payments',
+  FEE_PLANS: 'feePlans',
+  INVOICES: 'invoices',
+  DONATIONS: 'donations',
+  PAYROLL: 'payroll',
+  CASH_ENTRIES: 'cashEntries',
+  CASH_CLOSINGS: 'cashClosings',
   EXPENSES: 'expenses',
   SETTINGS: 'settings'
 }

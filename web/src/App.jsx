@@ -35,6 +35,8 @@ const Competitions = lazy(() => import('@/features/recognition/CompetitionsPage'
 const HonorBoard = lazy(() => import('@/features/recognition/HonorBoardPage'))
 const Rewards = lazy(() => import('@/features/recognition/RewardsPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
+const Finance = lazy(() => import('@/features/finance/FinancePage'))
+const Payments = lazy(() => import('@/features/finance/PaymentsPage'))
 
 const Loading = () => <div className="pt-20"><Skeleton rows={4} /></div>
 
@@ -88,6 +90,8 @@ export default function App() {
           <Route path="/honor-board" element={<Guard><HonorBoard /></Guard>} />
           <Route path="/rewards" element={<Guard><Rewards /></Guard>} />
           <Route path="/competitions" element={<Guard><Competitions /></Guard>} />
+          <Route path="/finance" element={<Guard><Finance /></Guard>} />
+          <Route path="/payments" element={<Guard><Payments /></Guard>} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Guard><ComingSoon /></Guard>} />
         </Route>
