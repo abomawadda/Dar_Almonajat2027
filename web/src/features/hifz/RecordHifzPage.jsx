@@ -1,26 +1,58 @@
+// Daily recitation. The teacher assigns tomorrow's portions (الجديد / الماضي القريب / الماضي البعيد)
+// at the end of each session; the next session opens with those portions preloaded. Every portion is
+// chosen from mushaf lists (juz / hizb / surah / ayahs) — nothing is typed by hand.
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthProvider'
 import { useData } from '@/context/DataProvider'
 import { Page } from '@/components/layout/AppShell'
-import { Badge, Button, Card, EmptyState, Field, Icon, Input, Progress, Section, Segmented, Select, Skeleton, Textarea, cx } from '@/components/ui'
+import { Badge, Button, Card, EmptyState, Field, Input, Progress, Section, Select, Skeleton, Textarea, Toggle, cx } from '@/components/ui'
 import { MASTERY } from '@/config/constants'
-import { SURAHS, nextAyahStart, suggestMastery, validateRange } from '@/config/quran'
+import { SURAHS, suggestMastery } from '@/config/quran'
+import { addRange, pickLabel, pickToRange, planOf, rangeToPick, suggestFar, suggestNear, suggestNew } from '@/lib/hifz'
 import { useAction } from '@/hooks/useAction'
-import { hifzRecordsFor, recordHifz, todayHifzIds } from '@/services/academic'
+import { HIFZ_TRACKS, getHifzProgress, hifzRecordsFor, recordHifz, todayHifzIds } from '@/services/academic'
 import { fmtDate } from '@/lib/format'
+import MushafPicker from './MushafPicker'
 
-const EMPTY = { from: '', to: '', revFrom: '', revTo: '', notes: '', homework: '' }
+const TRACK_TONE = { new: 'text-gold-600', near: 'text-ok', far: 'text-info' }
+const KEYS = ['new', 'near', 'far']
+const fromSuggestion = (sg) => (sg ? { unit: 'ayahs', surah: suggestionSurahNo(sg.surah), from: sg.from, to: sg.to } : null)
+function suggestionSurahNo(name) { return SURAHS.findIndex((s) => s.name === name) + 1 }
+
+/** Today's portions: the teacher's assignment first, otherwise the plan's suggestion for الجديد only. */
+function todayTracks(p) {
+  const a = p?.assignment || {}
+  const t = {}
+  for (const k of KEYS) {
+    if (a[k]) { t[k] = { on: true, pick: a[k], assigned: true }; continue }
+    const def = k === 'new' ? fromSuggestion(suggestNew(p)) : rangeToPick(k === 'near' ? suggestNear(p) : suggestFar(p))
+    t[k] = { on: k === 'new' && !!def, pick: def, assigned: false }
+  }
+  return t
+}
+
+/** Defaults for tomorrow, taking today's accepted new portion into account. */
+function tomorrowTracks(p, today) {
+  const after = { ...(p || {}), pendingRepeat: null }
+  const nr = today.new?.on && pickToRange(today.new.pick)
+  if (nr) { after.ranges = addRange(after.ranges, nr); after.lastNew = nr }
+  return {
+    new: { on: true, pick: fromSuggestion(suggestNew(after)) },
+    near: { on: false, pick: rangeToPick(suggestNear(after)) },
+    far: { on: false, pick: rangeToPick(suggestFar(after)) }
+  }
+}
 
 export default function RecordHifzPage() {
   const { actor } = useAuth()
   const { students } = useData()
   const [sid, setSid] = useState('')
-  const [type, setType] = useState('new')
-  const [surah, setSurah] = useState('الفاتحة')
-  const [revSurah, setRevSurah] = useState('الفاتحة')
-  const [f, setF] = useState({ ...EMPTY, repetitions: 5 })
-  const [hifzMistakes, setHifzMistakes] = useState(0)
-  const [tajweedMistakes, setTajweedMistakes] = useState(0)
+  const [progress, setProgress] = useState(null)
+  const [today, setToday] = useState(null)
+  const [next, setNext] = useState(null)
+  const [f, setF] = useState({ notes: '', homework: '', repetitions: 5 })
+  const [mist, setMist] = useState({ hifz: 0, tajweed: 0, tashkeel: 0 })
   const [mastery, setMastery] = useState('excellent')
   const [doneIds, setDoneIds] = useState(() => new Set())
   const [lastRec, setLastRec] = useState(null)
@@ -36,48 +68,38 @@ export default function RecordHifzPage() {
   useEffect(() => {
     if (!student?.id) return
     let cancelled = false
-    setLastRec(null)
-    setHifzMistakes(0)
-    setTajweedMistakes(0)
+    setProgress(null); setToday(null); setNext(null); setLastRec(null)
+    setMist({ hifz: 0, tajweed: 0, tashkeel: 0 })
     setMastery('excellent')
-
-    const fallbackNew = student.academicInfo?.lastHifz
-    const startFallback = nextAyahStart(fallbackNew?.surahName, fallbackNew?.toAyah)
-    setSurah(startFallback.surah)
-    setF((x) => ({ ...EMPTY, from: String(startFallback.from), repetitions: x.repetitions || 5 }))
-
-    hifzRecordsFor(student.id).then((recs) => {
+    setF((x) => ({ notes: '', homework: '', repetitions: x.repetitions || 5 }))
+    Promise.all([getHifzProgress(student.id), hifzRecordsFor(student.id)]).then(([p, recs]) => {
       if (cancelled) return
-      const latest = recs[0] || null
-      const latestNew = recs.find((r) => r.newMemorization) || null
-      const latestRev = recs.find((r) => r.revision) || null
-      setLastRec(latest)
-      const mem = latestNew?.newMemorization || fallbackNew
-      if (mem) {
-        const next = nextAyahStart(mem.surahName, mem.toAyah)
-        setSurah(next.surah)
-        setF((x) => ({ ...EMPTY, from: String(next.from), repetitions: x.repetitions || 5 }))
-      }
-      if (latestRev?.revision?.surahName) {
-        setRevSurah(latestRev.revision.surahName)
-      }
-    }).catch(() => {})
-
+      const prog = p || {}
+      const t = todayTracks(prog)
+      setProgress(prog); setLastRec(recs[0] || null); setToday(t); setNext(tomorrowTracks(prog, t))
+    }).catch(() => { if (!cancelled) { setProgress({}); setToday(todayTracks({})); setNext(tomorrowTracks({}, {})) } })
     return () => { cancelled = true }
-  }, [student?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [student?.id])
 
-  const hasNew = type === 'new' || type === 'both'
-  const hasRev = type === 'revision' || type === 'both'
-  const newRange = useMemo(() => validateRange(surah, parseInt(f.from, 10), parseInt(f.to, 10)), [surah, f.from, f.to])
-  const revRange = useMemo(() => validateRange(revSurah, parseInt(f.revFrom, 10), parseInt(f.revTo, 10)), [revSurah, f.revFrom, f.revTo])
-  const canSave = (hasNew ? newRange.ok : true) && (hasRev ? revRange.ok : true)
+  // keep tomorrow's "new" in step with today's new portion
+  const todayNewKey = today?.new?.on ? JSON.stringify(today.new.pick) : ''
+  useEffect(() => {
+    if (!progress || !today) return
+    setNext((n) => n && ({ ...n, new: { ...n.new, pick: tomorrowTracks(progress, today).new.pick } }))
+  }, [todayNewKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const plan = planOf(progress)
+  const willRepeat = today?.new?.on && mist.hifz > plan.maxNewMistakes
+  const canSave = useMemo(() => {
+    if (!today) return false
+    const on = KEYS.filter((k) => today[k].on)
+    return on.length > 0 && on.every((k) => pickToRange(today[k].pick)) && KEYS.every((k) => !next?.[k]?.on || pickToRange(next[k].pick))
+  }, [today, next])
 
   const updateMistake = (kind, delta) => {
-    const nextHifz = kind === 'hifz' ? Math.max(0, hifzMistakes + delta) : hifzMistakes
-    const nextTajweed = kind === 'tajweed' ? Math.max(0, tajweedMistakes + delta) : tajweedMistakes
-    setHifzMistakes(nextHifz)
-    setTajweedMistakes(nextTajweed)
-    setMastery(suggestMastery(nextHifz, nextTajweed))
+    const m = { ...mist, [kind]: Math.max(0, mist[kind] + delta) }
+    setMist(m)
+    setMastery(suggestMastery(m.hifz, m.tajweed + m.tashkeel))
   }
 
   const nextStudent = (done = doneIds) => {
@@ -85,42 +107,32 @@ export default function RecordHifzPage() {
     const curIdx = students.findIndex((s) => s.id === student.id)
     for (let step = 1; step <= students.length; step++) {
       const cand = students[(curIdx + step) % students.length]
-      if (!done.has(cand.id)) {
-        setSid(cand.id)
-        return
-      }
+      if (!done.has(cand.id)) { setSid(cand.id); return }
     }
     setSid(students[(curIdx + 1) % students.length].id)
   }
 
   const [save, busy] = useAction(
-    () => recordHifz({
-      student,
-      type,
-      surah,
-      from: parseInt(f.from, 10),
-      to: parseInt(f.to, 10),
-      revSurah,
-      revFrom: parseInt(f.revFrom, 10),
-      revTo: parseInt(f.revTo, 10),
-      repetitions: parseInt(f.repetitions, 10),
-      mastery,
-      hifzMistakes,
-      tajweedMistakes,
-      homework: f.homework,
-      notes: f.notes
-    }, actor),
-    { success: (n) => `حُفظ التسميع (${n} آية)${student?.parentId ? ' وأُشعر ولي الأمر' : ''}` }
+    () => {
+      const segments = {}
+      for (const k of KEYS) if (today[k].on) segments[k] = { ...today[k].pick, ...(k === 'new' ? { repetitions: +f.repetitions || 1 } : {}) }
+      const assignNext = {}
+      for (const k of KEYS) if (next[k].on) assignNext[k] = next[k].pick
+      return recordHifz({
+        student, segments, assignNext, mastery,
+        hifzMistakes: mist.hifz, tajweedMistakes: mist.tajweed, tashkeelMistakes: mist.tashkeel,
+        homework: f.homework, notes: f.notes
+      }, actor)
+    },
+    { success: (n) => `حُفظ التسميع (${n} آية)${willRepeat ? ' — الجديد يُعاد' : ''}${student?.parentId ? ' وأُرسل الواجب لولي الأمر' : ''}` }
   )
 
   if (!students) return <Page title="تسجيل تسميع"><Skeleton rows={5} /></Page>
   if (!students.length) return <Page title="تسجيل تسميع"><EmptyState icon="users-group-rounded-bold">لا يوجد طلبة</EmptyState></Page>
 
   const doneCount = students.filter((s) => doneIds.has(s.id)).length
-  const hwText = lastRec?.homework || student.academicInfo?.lastHomework
-  const lastMem = lastRec?.newMemorization || lastRec?.revision || student.academicInfo?.lastHifz
-  const lastMastery = lastRec?.masteryLevel || lastMem?.masteryLevel || student.academicInfo?.lastMastery
-  const lastDate = lastRec?.date || lastMem?.date || student.academicInfo?.lastSession
+  const lastMastery = lastRec?.masteryLevel || student.academicInfo?.lastMastery
+  const lastDate = lastRec?.date || student.academicInfo?.lastSession
 
   return (
     <Page title="تسجيل تسميع">
@@ -138,91 +150,64 @@ export default function RecordHifzPage() {
         <Field label="الطالب">
           <Select value={student.id} onChange={(e) => setSid(e.target.value)}>
             {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {doneIds.has(s.id) ? '✓ ' : ''}{s.personalInfo.fullName} — {s.academicInfo?.groupName}
-              </option>
+              <option key={s.id} value={s.id}>{doneIds.has(s.id) ? '✓ ' : ''}{s.personalInfo.fullName} — {s.academicInfo?.groupName}</option>
             ))}
           </Select>
         </Field>
-        {(lastMem || hwText) && (
-          <div className="mb-3 p-3 rounded-2xl bg-gold-50 border border-gold-400/30 text-xs space-y-1">
-            {lastMem && (
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-gold-600">
-                  آخر تسميع: {lastMem.surahName} {lastMem.fromAyah}–{lastMem.toAyah}
-                  {lastDate ? ` (${fmtDate(lastDate, { day: 'numeric', month: 'short' })})` : ''}
-                </span>
-                {lastMastery && <Badge tone={lastMastery === 'excellent' ? 'ok' : lastMastery === 'weak' ? 'bad' : 'gold'}>{MASTERY[lastMastery]}</Badge>}
-              </div>
-            )}
-            {hwText && (
-              <div className="text-ink-soft leading-6">
-                <b className="text-ink">الواجب المطلوب اليوم:</b> {hwText}
-              </div>
-            )}
+        {lastDate && (
+          <div className="mb-2 p-3 rounded-2xl bg-gold-50 border border-gold-400/30 text-xs flex items-center justify-between gap-2">
+            <span className="font-bold text-gold-600">آخر تسميع: {fmtDate(lastDate, { day: 'numeric', month: 'short' })}{lastRec?.status === 'repeat' ? ' — الجديد إعادة' : ''}</span>
+            {lastMastery && <Badge tone={lastMastery === 'excellent' ? 'ok' : lastMastery === 'weak' ? 'bad' : 'gold'}>{MASTERY[lastMastery]}</Badge>}
           </div>
         )}
-        <Segmented value={type} onChange={setType} options={[['new', 'حفظ جديد'], ['both', 'حفظ + مراجعة'], ['revision', 'مراجعة']]} />
+        <Link to={`/hifz-map?student=${student.id}`} className="text-xs font-bold text-info">خريطة الحفظ والخطة ←</Link>
       </Section>
 
-      <Card className="mx-4 p-4">
-        {hasNew && (
-          <div className={cx(hasRev && 'pb-3 mb-3 border-b')}>
-            {type === 'both' && <div className="text-xs font-extrabold text-gold-600 mb-2">الحفظ الجديد</div>}
-            <Field label="السورة">
-              <Select value={surah} onChange={(e) => setSurah(e.target.value)}>
-                {SURAHS.map((s) => <option key={s.n} value={s.name}>{s.n}. {s.name} ({s.ayahs} آية)</option>)}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="من آية"><Input type="number" inputMode="numeric" min="1" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
-              <Field label="إلى آية"><Input type="number" inputMode="numeric" min="1" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></Field>
-            </div>
-            {f.from && f.to && (
-              <div className={cx('text-center text-sm font-bold rounded-xl py-2 mb-3', newRange.ok ? 'bg-gold-50 text-gold-600' : 'bg-bad-soft text-bad')}>
-                {newRange.ok ? `عدد آيات الحفظ: ${newRange.count}` : newRange.error}
+      {!today || !next ? <div className="px-4"><Skeleton rows={4} /></div> : (
+        <>
+          <Section title="تسميع اليوم">
+            <Card className="p-4 space-y-3">
+              {KEYS.map((k) => (
+                <TrackCard key={k} k={k} t={today[k]} onChange={(p) => setToday((x) => ({ ...x, [k]: { ...x[k], ...p } }))}
+                  hint={today[k].assigned ? 'مقرر من المحفظ في الجلسة السابقة' : k === 'new' ? 'مقترح من خطة الطالب' : ''}
+                  extra={k === 'new' && (
+                    <Field label="عدد التكرارات"><Input type="number" min="1" value={f.repetitions} onChange={(e) => setF({ ...f, repetitions: e.target.value })} /></Field>
+                  )} />
+              ))}
+
+              <div className="grid grid-cols-3 gap-2">
+                <MistakeCounter label="حفظ وتردد" value={mist.hifz} onChange={(d) => updateMistake('hifz', d)} />
+                <MistakeCounter label="تشكيل" value={mist.tashkeel} onChange={(d) => updateMistake('tashkeel', d)} />
+                <MistakeCounter label="تجويد" value={mist.tajweed} onChange={(d) => updateMistake('tajweed', d)} />
               </div>
-            )}
-            <Field label="عدد التكرارات"><Input type="number" min="1" value={f.repetitions} onChange={(e) => setF({ ...f, repetitions: e.target.value })} /></Field>
-          </div>
-        )}
+              {willRepeat && (
+                <div className="text-xs font-bold rounded-xl p-2.5 bg-bad-soft text-bad">
+                  أخطاء الحفظ تجاوزت الحد ({plan.maxNewMistakes}) — سيُسجَّل الجديد «إعادة» ولن يُضاف للمحفوظ.
+                </div>
+              )}
+              <Field label="مستوى الإتقان (يُقترح تلقائيًا من الأخطاء)">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {Object.entries(MASTERY).map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => setMastery(k)}
+                      className={cx('h-10 rounded-xl text-[13px] font-bold border transition', mastery === k ? { excellent: 'bg-ok-soft text-ok border-ok/30', good: 'bg-gold-50 text-gold-600 border-gold-400/40', average: 'bg-info-soft text-info border-info/30', weak: 'bg-bad-soft text-bad border-bad/30' }[k] : 'bg-field text-ink-muted border-transparent')}>{label}</button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="ملاحظات المحفظ"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="ملاحظاتك على أداء الطالب" /></Field>
+            </Card>
+          </Section>
 
-        {hasRev && (
-          <div className={cx(hasNew && 'pb-2 mb-3 border-b')}>
-            {type === 'both' && <div className="text-xs font-extrabold text-info mb-2">المراجعة</div>}
-            <Field label={type === 'both' ? 'سورة المراجعة' : 'السورة'}>
-              <Select value={revSurah} onChange={(e) => setRevSurah(e.target.value)}>
-                {SURAHS.map((s) => <option key={s.n} value={s.name}>{s.n}. {s.name} ({s.ayahs} آية)</option>)}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="من آية"><Input type="number" inputMode="numeric" min="1" value={f.revFrom} onChange={(e) => setF({ ...f, revFrom: e.target.value })} /></Field>
-              <Field label="إلى آية"><Input type="number" inputMode="numeric" min="1" value={f.revTo} onChange={(e) => setF({ ...f, revTo: e.target.value })} /></Field>
-            </div>
-            {f.revFrom && f.revTo && (
-              <div className={cx('text-center text-sm font-bold rounded-xl py-2 mb-3', revRange.ok ? 'bg-info-soft text-info' : 'bg-bad-soft text-bad')}>
-                {revRange.ok ? `عدد آيات المراجعة: ${revRange.count}` : revRange.error}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-          <MistakeCounter label="أخطاء الحفظ والتردد" value={hifzMistakes} onChange={(d) => updateMistake('hifz', d)} />
-          <MistakeCounter label="أخطاء التجويد" value={tajweedMistakes} onChange={(d) => updateMistake('tajweed', d)} />
-        </div>
-
-        <Field label="مستوى الإتقان (يُقترح تلقائيًا من الأخطاء)">
-          <div className="grid grid-cols-4 gap-1.5">
-            {Object.entries(MASTERY).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setMastery(k)}
-                className={cx('h-10 rounded-xl text-[13px] font-bold border transition', mastery === k ? { excellent: 'bg-ok-soft text-ok border-ok/30', good: 'bg-gold-50 text-gold-600 border-gold-400/40', average: 'bg-info-soft text-info border-info/30', weak: 'bg-bad-soft text-bad border-bad/30' }[k] : 'bg-field text-ink-muted border-transparent')}>{label}</button>
-            ))}
-          </div>
-        </Field>
-        <Field label="ملاحظات المعلم"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="ملاحظاتك على أداء الطالب" /></Field>
-        <Field label="الواجب"><Input value={f.homework} onChange={(e) => setF({ ...f, homework: e.target.value })} placeholder="مثال: مراجعة هود ١–٣٩ + حفظ ٧١–١٠٠" /></Field>
-      </Card>
+          <Section title="واجب الجلسة القادمة">
+            <Card className="p-4 space-y-3">
+              {willRepeat && <div className="text-[11px] text-ink-muted">الجديد غير المقبول يُعاد تلقائيًا إن لم تحدد جديدًا آخر.</div>}
+              {KEYS.map((k) => (
+                <TrackCard key={k} k={k} t={next[k]} onChange={(p) => setNext((x) => ({ ...x, [k]: { ...x[k], ...p } }))} />
+              ))}
+              <Field label="تكليف إضافي (اختياري)"><Input value={f.homework} onChange={(e) => setF({ ...f, homework: e.target.value })} placeholder="مثال: الاستماع للسورة ٣ مرات" /></Field>
+            </Card>
+          </Section>
+        </>
+      )}
 
       <div className="flex gap-2.5 px-4 mt-4">
         <Button className="flex-1" icon="check-circle-bold" busy={busy} disabled={!canSave}
@@ -233,23 +218,47 @@ export default function RecordHifzPage() {
               setDoneIds(nextSet)
               nextStudent(nextSet)
             }
-          }}>حفظ التسميع</Button>
+          }}>حفظ التسميع والواجب</Button>
         <Button variant="secondary" onClick={() => nextStudent()}>الطالب التالي</Button>
       </div>
     </Page>
   )
 }
 
+function TrackCard({ k, t, onChange, hint, extra }) {
+  const r = t.pick && pickToRange(t.pick)
+  return (
+    <div className={cx('rounded-2xl border p-3', t.on ? 'bg-card' : 'bg-field/60')}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className={cx('text-sm font-extrabold', TRACK_TONE[k])}>{HIFZ_TRACKS[k]}</div>
+          <div className="text-[11px] text-ink-muted mt-0.5 truncate">
+            {t.on && t.pick ? `${pickLabel(t.pick)}${r ? ` • ${r.e - r.s + 1} آية` : ''}` : hint || 'غير مقرر'}
+          </div>
+        </div>
+        <Toggle checked={t.on} onChange={(v) => onChange({ on: v, pick: t.pick || { unit: 'surah', from: 114, to: 114 } })} />
+      </div>
+      {t.on && (
+        <div className="mt-3">
+          {hint && <div className="text-[11px] font-bold text-gold-600 mb-2">{hint}</div>}
+          <MushafPicker value={t.pick} onChange={(pick) => onChange({ pick })} />
+          {extra}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MistakeCounter({ label, value, onChange }) {
   return (
-    <div className="bg-field rounded-xl p-2.5 text-center">
+    <div className="bg-field rounded-xl p-2 text-center">
       <div className="text-[11px] font-bold text-ink-soft mb-1.5">{label}</div>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-1">
         <button type="button" aria-label={`إنقاص ${label}`} onClick={() => onChange(-1)}
-          className="w-8 h-8 rounded-lg bg-card border font-extrabold text-ink-soft active:bg-paper">-</button>
-        <span className={cx('text-base font-extrabold min-w-[24px]', value > 0 ? 'text-bad' : 'text-ok')}>{value}</span>
+          className="w-7 h-7 rounded-lg bg-card border font-extrabold text-ink-soft active:bg-paper">-</button>
+        <span className={cx('text-base font-extrabold min-w-[20px]', value > 0 ? 'text-bad' : 'text-ok')}>{value}</span>
         <button type="button" aria-label={`زيادة ${label}`} onClick={() => onChange(1)}
-          className="w-8 h-8 rounded-lg bg-card border font-extrabold text-bad active:bg-bad-soft">+</button>
+          className="w-7 h-7 rounded-lg bg-card border font-extrabold text-bad active:bg-bad-soft">+</button>
       </div>
     </div>
   )

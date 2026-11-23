@@ -1,6 +1,6 @@
 // Student file: academic data plus live hifz, attendance and behavior history.
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useData } from '@/context/DataProvider'
 import { useAuth } from '@/context/AuthProvider'
 import { recordScope } from '@/services/scope'
@@ -55,6 +55,7 @@ export default function StudentProfilePage() {
           </div>
           <div className="text-xs text-ink-muted mb-1.5 flex justify-between"><span>التقدم في حفظ القرآن</span><b className="text-gold-600">{pct}%</b></div>
           <div className="h-2 rounded-full bg-field overflow-hidden"><div className="h-full bg-gold-grad rounded-full" style={{ width: `${pct}%` }} /></div>
+          <Link to={`/hifz-map?student=${s.id}`} className="inline-block mt-2 text-xs font-bold text-info">خريطة الحفظ والخطة ←</Link>
           <div className="grid grid-cols-2 gap-3 mt-4">
             <KV label="العمر">{ageLabel(ageFrom(s.personalInfo.birthDate))}</KV>
             <KV label="تاريخ الالتحاق">{fmtDate(s.joinedAt, { day: 'numeric', month: 'short', year: 'numeric' })}</KV>

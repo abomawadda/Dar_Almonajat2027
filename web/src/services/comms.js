@@ -45,20 +45,8 @@ export async function markAllRead(list) {
   await b.commit()
 }
 
-// ── Certificates ────────────────────────────────────────────────────────────
-export const subscribeCertificates = (actor, cb) =>
-  db().subscribe(COL.CERTIFICATES, recordScope(actor, { teacherField: null }), (rows) => cb(rows.sort(newestFirst)))
-
-export async function issueCertificate({ student, type, notes }, actor) {
-  const b = db().batch()
-  b.add(COL.CERTIFICATES, {
-    studentId: student.id, studentName: student.personalInfo.fullName, parentId: student.parentId || '',
-    groupName: student.academicInfo?.groupName || '', type, notes: notes || '',
-    issuedBy: actor.uid, issuedByName: actor.name, issuedAt: op.now()
-  })
-  if (student.parentId) b.add(COL.NOTIFICATIONS, { userId: student.parentId, type: 'certificate', title: 'شهادة جديدة', body: `شهادة ${type} للطالب ${student.personalInfo.fullName}`, isRead: false, createdAt: op.now() })
-  await b.commit()
-}
+// ── Certificates: see ./certificates.js ──────────────────────────────────────
+export { issueCertificate, subscribeCertificates } from './certificates'
 
 // ── Competitions ────────────────────────────────────────────────────────────
 export const subscribeCompetitions = (cb) =>

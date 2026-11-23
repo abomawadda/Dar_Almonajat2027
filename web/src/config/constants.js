@@ -14,11 +14,19 @@ export const COL = {
   HIFZ_PROGRESS: 'hifzProgress',
   BEHAVIOR: 'behavior',
   EXAMS: 'exams',
+  EXAM_RESULTS: 'examResults',
+  CERT_VERIFY: 'certVerify',
+  COUNTERS: 'counters',
   CERTIFICATES: 'certificates',
   COMPETITIONS: 'competitions',
   ANNOUNCEMENTS: 'announcements',
   CIRCULARS: 'circulars',
   NOTIFICATIONS: 'notifications',
+  EXCUSES: 'excuses',
+  REWARDS: 'rewards',
+  REDEMPTIONS: 'redemptions',
+  POINTS_LEDGER: 'pointsLedger',
+  POINTS_BALANCE: 'pointsBalance',
   PAYMENTS: 'payments',
   EXPENSES: 'expenses',
   SETTINGS: 'settings'
@@ -40,7 +48,19 @@ export const ATTENDANCE = {
   present: { label: 'حاضر',  tone: 'ok' },
   absent:  { label: 'غائب',  tone: 'bad' },
   late:    { label: 'متأخر', tone: 'warn' },
-  excused: { label: 'معذور', tone: 'info' }
+  excused: { label: 'معذور', tone: 'info' },
+  early_leave: { label: 'انصراف', tone: 'warn' }
+}
+export const EXCUSE_STATUS = {
+  pending:  { label: 'بانتظار الموافقة', tone: 'warn' },
+  approved: { label: 'مقبول', tone: 'ok' },
+  rejected: { label: 'مرفوض', tone: 'bad' }
+}
+export const REDEMPTION_STATUS = {
+  pending:   { label: 'بانتظار الموافقة', tone: 'warn' },
+  approved:  { label: 'تمت الموافقة', tone: 'info' },
+  delivered: { label: 'تم التسليم', tone: 'ok' },
+  rejected:  { label: 'مرفوض', tone: 'bad' }
 }
 
 export const MASTERY = {

@@ -91,4 +91,6 @@ export async function createLoginAccount(email, password) {
   }
 }
 
+export const firebaseApp = () => fb?.app || null
+
 export const callFunction = (name, data) => httpsCallable(fb.functions, name)(data).then((r) => r.data)

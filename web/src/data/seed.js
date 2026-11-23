@@ -2,6 +2,7 @@
 import { addDays, todayKey } from '@/lib/format'
 
 import BASE from './base.json'
+import { countAyahs, lastJuzRanges } from '@/lib/hifz'
 
 /** Base records (also used by functions/scripts/seed-base.mjs — single source in base.json). */
 export function baseSeed() {
@@ -61,10 +62,15 @@ export async function seedDemo(db) {
     b.set('students', id, {
       status: 'active', parentId, enrollType: 'quran', joinedAt: ago(2000),
       personalInfo: { fullName: name, birthDate: birth, gender: 'ذكر' },
-      academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: juz * 208, level: g.level, ...(studentExtras[id] || {}) }
+      academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: countAyahs(lastJuzRanges(juz)), level: g.level, ...(studentExtras[id] || {}) }
     })
-    b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: juz * 208, juzProgress: [], lastUpdated: ago(24) })
+    const pts = 40 + juz * 12 + id.charCodeAt(1) * 3
+    const ym = todayKey().slice(0, 7)
+    b.set('pointsBalance', id, { studentId: id, studentName: name, parentId, groupId: gid, groupName: g.name, balance: pts, earned: pts, months: { [ym]: Math.round(pts / 3) } })
+    b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: countAyahs(lastJuzRanges(juz)), ranges: lastJuzRanges(juz), lastUpdated: ago(24) })
   })
+  ;[['مصحف التجويد الملوّن', 150, '📖', 5], ['حقيبة الدار', 120, '🎒', 10], ['قلم ومفكرة', 40, '🖊️', null], ['رحلة الأوائل', 400, '🎟️', 3]]
+    .forEach(([name, cost, icon, stock], i) => b.set('rewards', `R${i + 1}`, { name, cost, icon, stock, active: true }))
   base.teachers.forEach((x) => b.set('teachers', x.id, strip(x)))
   Object.values(groups).forEach((g) => b.set('groups', g.id, strip(g)))
   ;[
@@ -127,10 +133,12 @@ export async function seedDemo(db) {
     ['اختبار جزء عم — المبتدئين', 'G3', -6, '09:00', 'جزء عم كاملًا']
   ].forEach(([title, gid, days, time, scope]) => {
     const g = groups[gid]
-    b.add('exams', { title, groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, date: todayKey(new Date(t + days * 864e5)), time, duration: 60, scope, totalMarks: 100, passMark: 60, status: 'scheduled', studentCount: g.studentCount, createdAt: ago(10) })
+    b.add('exams', { title, groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, date: todayKey(new Date(t + days * 864e5)), time, duration: 60, scope, kind: 'periodic', rubric: [{ key: 'hifz', label: 'الحفظ', max: 60 }, { key: 'tajweed', label: 'أحكام التجويد', max: 20 }, { key: 'makharij', label: 'المخارج والأداء', max: 10 }, { key: 'waqf', label: 'الوقف والابتداء', max: 10 }], totalMarks: 100, passPercent: 60, passMark: 60, status: 'scheduled', studentCount: g.studentCount, createdAt: ago(10) })
   })
-  b.add('certificates', { studentId: 'S2', studentName: 'إبراهيم عادل الزيات', parentId: 'P2', groupName: 'حلقة المتقدمين', type: 'حفظ ٢٠ جزءًا', issuedByName: 'أ. محمود العراقي', issuedAt: ago(200) })
+  b.add('certificates', { studentId: 'S2', studentName: 'إبراهيم عادل الزيات', parentId: 'P2', groupName: 'حلقة المتقدمين', type: 'حفظ ٢٠ جزءًا', serial: `DAR-${new Date(t).getFullYear()}-0001`, verifyCode: 'DEMO2026', status: 'valid', issuedByName: 'أ. محمود العراقي', issuedAt: ago(200) })
   b.add('certificates', { studentId: 'S1', studentName: 'محمد طارق الشناوي', parentId: 'P1', groupName: 'حلقة المتقدمين', type: 'حفظ ١٥ جزءًا', issuedByName: 'أ. محمود العراقي', issuedAt: ago(900) })
+  b.set('counters', `certificates_${new Date(t).getFullYear()}`, { value: 1 })
+  b.set('certVerify', 'DEMO2026', { serial: `DAR-${new Date(t).getFullYear()}-0001`, studentName: 'إبراهيم عادل الزيات', type: 'حفظ ٢٠ جزءًا', grade: 'ممتاز', issuedOn: todayKey(new Date(t - 200 * 36e5)), status: 'valid' })
   b.add('competitions', { title: 'مسابقة الشهر — حفظ جزء عم', startDate: todayKey(new Date(t - 10 * 864e5)), endDate: todayKey(new Date(t + 10 * 864e5)), condition: 'حفظ جزء عم بتقدير جيد جدًا فأعلى', prizes: 'الأول: ١٠٠٠ ج.م + مصحف • الثاني: ٦٠٠ ج.م • الثالث: ٣٠٠ ج.م', createdAt: ago(240) })
   b.add('notifications', { userId: 'P1', type: 'hifz', title: 'تسميع محمد — ممتاز', body: 'حفظ سورة هود ٤٠–٧٠ بدرجة ممتاز', isRead: false, createdAt: ago(3) })
   b.add('notifications', { userId: 'T1', type: 'exam', title: 'اختبار قادم', body: 'اختبار حفظ الجزء الحادي عشر بعد ٣ أيام', isRead: false, createdAt: ago(10) })

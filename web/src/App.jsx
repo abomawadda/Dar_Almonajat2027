@@ -20,14 +20,19 @@ const StudentProfile = lazy(() => import('@/features/students/StudentProfilePage
 const Attendance = lazy(() => import('@/features/attendance/AttendancePage'))
 const StaffAttendance = lazy(() => import('@/features/attendance/StaffAttendancePage'))
 const RecordHifz = lazy(() => import('@/features/hifz/RecordHifzPage'))
+const HifzMap = lazy(() => import('@/features/hifz/HifzMapPage'))
 const Behavior = lazy(() => import('@/features/behavior/BehaviorPage'))
 const Exams = lazy(() => import('@/features/exams/ExamsPage'))
 const NewExam = lazy(() => import('@/features/exams/NewExamPage'))
+const ExamDetail = lazy(() => import('@/features/exams/ExamDetailPage'))
+const VerifyCertificate = lazy(() => import('@/features/recognition/VerifyCertificatePage'))
 const Announcements = lazy(() => import('@/features/comms/AnnouncementsPage'))
 const Circulars = lazy(() => import('@/features/comms/CircularsPage'))
 const Notifications = lazy(() => import('@/features/comms/NotificationsPage'))
 const Certificates = lazy(() => import('@/features/recognition/CertificatesPage'))
 const Competitions = lazy(() => import('@/features/recognition/CompetitionsPage'))
+const HonorBoard = lazy(() => import('@/features/recognition/HonorBoardPage'))
+const Rewards = lazy(() => import('@/features/recognition/RewardsPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 
 const Loading = () => <div className="pt-20"><Skeleton rows={4} /></div>
@@ -56,6 +61,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/apply" element={<PublicApply />} />
+        <Route path="/verify" element={<VerifyCertificate />} />
+        <Route path="/verify/:code" element={<VerifyCertificate />} />
         <Route element={<Private />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -67,13 +74,17 @@ export default function App() {
           <Route path="/attendance" element={<Guard><Attendance /></Guard>} />
           <Route path="/staff-attendance" element={<Guard><StaffAttendance /></Guard>} />
           <Route path="/hifz/record" element={<Guard><RecordHifz /></Guard>} />
+          <Route path="/hifz-map" element={<Guard><HifzMap /></Guard>} />
           <Route path="/behavior" element={<Guard><Behavior /></Guard>} />
           <Route path="/exams" element={<Guard><Exams /></Guard>} />
           <Route path="/exams/new" element={<Guard><NewExam /></Guard>} />
+          <Route path="/exams/:id" element={<Guard><ExamDetail /></Guard>} />
           <Route path="/announcements" element={<Guard><Announcements /></Guard>} />
           <Route path="/circulars" element={<Guard><Circulars /></Guard>} />
           <Route path="/notifications" element={<Guard><Notifications /></Guard>} />
           <Route path="/certificates" element={<Guard><Certificates /></Guard>} />
+          <Route path="/honor-board" element={<Guard><HonorBoard /></Guard>} />
+          <Route path="/rewards" element={<Guard><Rewards /></Guard>} />
           <Route path="/competitions" element={<Guard><Competitions /></Guard>} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Guard><ComingSoon /></Guard>} />
