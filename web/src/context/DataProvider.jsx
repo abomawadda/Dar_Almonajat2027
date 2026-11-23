@@ -6,9 +6,10 @@ import { subscribeStudents, subscribeGroups, subscribeTeachers } from '@/service
 import { subscribeNotifications, subscribeAnnouncements, subscribeCirculars } from '@/services/comms'
 import { subscribeApplications } from '@/services/admissions'
 import { subscribeExams } from '@/services/academic'
+import { myKey, subscribeConversations } from '@/services/messages'
 
 const DataCtx = createContext(null)
-const EMPTY = { students: null, groups: null, teachers: null, notifications: [], announcements: null, circulars: null, applications: null, exams: null }
+const EMPTY = { conversations: [], students: null, groups: null, teachers: null, notifications: [], announcements: null, circulars: null, applications: null, exams: null }
 
 export function DataProvider({ children }) {
   const { actor } = useAuth()
@@ -24,7 +25,8 @@ export function DataProvider({ children }) {
       subscribeNotifications(actor, put('notifications')),
       subscribeAnnouncements(actor, put('announcements')),
       subscribeCirculars(actor, put('circulars')),
-      subscribeExams(actor, put('exams'))
+      subscribeExams(actor, put('exams')),
+      subscribeConversations(actor, put('conversations'))
     ]
     if (isStaffRole(actor.role) || actor.role === 'teacher') subs.push(subscribeTeachers(put('teachers')))
     if (isStaffRole(actor.role)) subs.push(subscribeApplications(put('applications')))
@@ -42,7 +44,8 @@ export function DataProvider({ children }) {
     const unread = (data.notifications || []).filter((n) => !n.isRead).length
     const pendingAck = (data.circulars || []).filter((c) => c.requiresAck && !(c.acks || []).includes(actor?.uid)).length
     const pendingApps = (data.applications || []).filter((a) => a.status === 'pending').length
-    return { ...data, exams, badges: { notifications: unread, circulars: isStaffRole(actor?.role) ? 0 : pendingAck, applications: pendingApps } }
+    const unreadMsgs = (data.conversations || []).reduce((n, c) => n + (c.unread?.[actor ? myKey(actor) : ''] || 0), 0)
+    return { ...data, exams, badges: { messages: unreadMsgs, notifications: unread, circulars: isStaffRole(actor?.role) ? 0 : pendingAck, applications: pendingApps } }
   }, [data, actor])
 
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>

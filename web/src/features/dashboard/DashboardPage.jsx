@@ -1,5 +1,6 @@
 // One dashboard route; the content adapts to the role (all figures are live).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { dailySummaryFor } from '@/services/summary'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthProvider'
 import { useData } from '@/context/DataProvider'
@@ -52,6 +53,7 @@ export default function DashboardPage() {
       {kind === 'staff' && <StaffKpis data={data} />}
       {kind === 'teacher' && <TeacherKpis data={data} actor={actor} />}
       {(kind === 'student' || kind === 'parent') && <Children data={data} kind={kind} />}
+      {kind === 'parent' && <TodaySummary students={data.students} actor={actor} />}
 
       <Section title={kind === 'staff' ? 'وحدات النظام' : kind === 'teacher' ? 'أدوات المحفظ' : 'خدماتي'} action={<Link to="/services" className="text-xs font-bold text-gold-500">كل الخدمات</Link>}>
         <Card className="px-1.5 py-2 grid grid-cols-4 md:grid-cols-8">{tiles.map((s) => <ServiceTile key={s.id} s={s} badge={s.badge && data.badges[s.badge]} />)}</Card>
@@ -212,6 +214,28 @@ function LatestAnnouncements({ list }) {
         <div className="flex items-center justify-between mb-1.5"><span className="font-extrabold text-sm">{a.title}</span>{a.pinned && <Badge tone="gold">مثبّت</Badge>}</div>
         <p className="text-[13px] text-ink-soft leading-7 clamp-3">{a.body}</p>
       </Link>
+    </Section>
+  )
+}
+
+function TodaySummary({ students, actor }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => {
+    if (!students) return
+    Promise.all(students.map((s) => dailySummaryFor(s, actor).catch(() => null))).then(setRows)
+  }, [students, actor])
+  if (!rows) return null
+  return (
+    <Section title="ملخص اليوم" action={<Link to="/messages" className="text-xs font-bold text-gold-500">راسل المحفظ</Link>}>
+      <div className="space-y-2.5">
+        {rows.map((r, i) => r && (
+          <Card key={students[i].id} className="p-4">
+            <div className="text-sm font-extrabold mb-1.5">{r.title}</div>
+            {r.empty ? <div className="text-xs text-ink-muted">لم يُسجَّل شيء اليوم بعد</div>
+              : r.lines.map((l) => <div key={l} className="text-[12.5px] text-ink-soft leading-6">• {l}</div>)}
+          </Card>
+        ))}
+      </div>
     </Section>
   )
 }

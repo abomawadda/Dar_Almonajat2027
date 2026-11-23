@@ -30,7 +30,7 @@ export const SERVICES = [
   { id: 'announcements',path: '/announcements',    label: 'الإعلانات',       icon: 'bell-bold',                    tone: 'info',   group: 'comms',      roles: ALL },
   { id: 'circulars',    path: '/circulars',        label: 'التعميمات',       icon: 'document-text-bold',           tone: 'violet', group: 'comms',      roles: ALL, badge: 'circulars' },
   { id: 'notifications',path: '/notifications',    label: 'الإشعارات',       icon: 'bell-bing-bold',               tone: 'bad',    group: 'comms',      roles: ALL, badge: 'notifications' },
-  { id: 'messages',     path: '/messages',         label: 'الرسائل',         icon: 'chat-round-dots-bold',         tone: 'info',   group: 'comms',      roles: ALL, ready: false },
+  { id: 'messages',     path: '/messages',         label: 'الرسائل',         icon: 'chat-round-dots-bold',         tone: 'info',   group: 'comms',      roles: ['admin', 'supervisor', 'teacher', 'parent'], badge: 'messages' },
   { id: 'finance',      path: '/finance',          label: 'الخزينة',         icon: 'wallet-money-bold',            tone: 'violet', group: 'admin',      roles: ['admin'], ready: false },
   { id: 'payments',     path: '/payments',         label: 'المدفوعات',       icon: 'card-bold',                    tone: 'violet', group: 'admin',      roles: ['admin', 'parent'], ready: false },
   { id: 'reports',      path: '/reports',          label: 'التقارير',        icon: 'chart-2-bold',                 tone: 'bad',    group: 'admin',      roles: STAFF, ready: false },

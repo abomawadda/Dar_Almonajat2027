@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthProvider'
 import { Page } from '@/components/layout/AppShell'
-import { Avatar, Button, Card, Icon, ListItem, Section } from '@/components/ui'
+import { Avatar, Button, Card, Icon, ListItem, Section, ToggleRow } from '@/components/ui'
+import { disablePush, enablePush, pushAvailability, pushEnabledHere } from '@/lib/push'
 import { useToast } from '@/components/ui/Toast'
 import { db, firebaseConfig } from '@/lib/backend'
 import { seedDemo } from '@/data/seed'
@@ -11,6 +12,14 @@ export default function SettingsPage() {
   const { actor, signOut, mode, resetPassword } = useAuth()
   const toast = useToast()
   const [busy, setBusy] = useState(false)
+  const [push, setPush] = useState(pushEnabledHere())
+  const pushState = pushAvailability()
+  const togglePush = async (on) => {
+    try {
+      if (on) { await enablePush(actor); toast('فُعّلت الإشعارات على هذا الجهاز', 'success') } else { await disablePush(); toast('أُوقفت الإشعارات على هذا الجهاز', 'success') }
+      setPush(on)
+    } catch (e) { toast(errorMessage(e), 'error') }
+  }
 
   const resetDemo = async () => {
     if (!confirm('سيتم حذف كل البيانات التجريبية وإعادة البيانات الافتراضية. متابعة؟')) return
@@ -33,6 +42,12 @@ export default function SettingsPage() {
         <Card className="px-4">
           {mode === 'live' && actor.email && <ListItem onClick={changePassword} leading={<Icon name="key-minimalistic-bold" className="text-xl text-gold-500" />} title="تغيير كلمة المرور" subtitle="يُرسل رابط إلى بريدك" />}
           <ListItem onClick={signOut} leading={<Icon name="logout-2-bold" className="text-xl text-bad" />} title={<span className="text-bad">تسجيل الخروج</span>} />
+        </Card>
+      </Section>
+      <Section title="الإشعارات">
+        <Card className="px-4">
+          <ToggleRow title="إشعارات الجوال على هذا الجهاز" subtitle={pushState.ok ? 'التسميع والحضور والرسائل والنتائج وملخص اليوم' : pushState.reason}
+            checked={push} disabled={!pushState.ok} onChange={togglePush} />
         </Card>
       </Section>
       <Section title="قاعدة البيانات">
