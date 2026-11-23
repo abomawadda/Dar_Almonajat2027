@@ -6,6 +6,7 @@ import { validateRange } from '@/config/quran'
 import { isStaffRole } from '@/config/roles'
 import { todayKey } from '@/lib/format'
 import { recordScope } from './scope'
+import { DEFAULT_PLAN, addRange, countAyahs, isAccepted, juzCoverage, juzOf, planOf, segmentRange } from '@/lib/hifz'
 
 const newestFirst = (a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1)
 const notify = (b, userId, type, title, body) => {
@@ -101,66 +102,116 @@ export function staffCheck({ staffId, staffName, date, kind }, actor) {
   return db().set(COL.STAFF_ATTENDANCE, `${date}_${staffId}`, patch, { merge: true })
 }
 
-// ── Hifz session ────────────────────────────────────────────────────────────
-export async function recordHifz(
-  { student, type = 'new', surah, from, to, revSurah, revFrom, revTo, repetitions, mastery, hifzMistakes = 0, tajweedMistakes = 0, homework, notes },
-  actor
-) {
+// ── Hifz session (three tracks: new / near / far) ───────────────────────────
+export const HIFZ_TRACKS = { new: 'الجديد', near: 'الماضي القريب', far: 'الماضي البعيد' }
+
+/** Normalise input → { new?, near?, far? } segments. Accepts the legacy `type` + surah/from/to/rev* shape. */
+function toSegments(i) {
+  if (i.segments) return i.segments
+  const seg = {}
+  const type = i.type || 'new'
+  if (type === 'new' || type === 'both') seg.new = { surah: i.surah, from: i.from, to: i.to, repetitions: i.repetitions }
+  if (type === 'near') seg.near = { surah: i.surah, from: i.from, to: i.to }
+  if (type === 'revision' || type === 'far' || type === 'both') {
+    seg.far = { surah: i.revSurah || i.surah, from: i.revFrom ?? i.from, to: i.revTo ?? i.to }
+  }
+  return seg
+}
+
+export const getHifzProgress = (studentId) => db().get(COL.HIFZ_PROGRESS, studentId)
+export const saveHifzPlan = (studentId, plan) =>
+  db().set(COL.HIFZ_PROGRESS, studentId, { studentId, plan: { ...DEFAULT_PLAN, ...plan }, lastUpdated: op.now() }, { merge: true })
+
+export async function recordHifz(input, actor) {
+  const { student, mastery, hifzMistakes = 0, tajweedMistakes = 0, tashkeelMistakes = 0, homework, notes } = input
   if (!student) throw new Error('اختر الطالب')
   if (!MASTERY[mastery]) throw new Error('اختر مستوى الإتقان')
-  const hasNew = type === 'new' || type === 'both'
-  const hasRev = type === 'revision' || type === 'both'
-  if (!hasNew && !hasRev) throw new Error('اختر نوع التسميع')
+  const segs = Object.fromEntries(Object.entries(toSegments(input)).filter(([, v]) => v))
+  if (!Object.keys(segs).length) throw new Error('اختر نوع التسميع')
 
-  let nv = null
-  if (hasNew) {
-    nv = validateRange(surah, from, to)
-    if (!nv.ok) throw new Error(nv.error)
-  }
-
-  let rv = null
-  const rSurah = revSurah || surah
-  const rFrom = revFrom ?? from
-  const rTo = revTo ?? to
-  if (hasRev) {
-    rv = validateRange(rSurah, rFrom, rTo)
-    if (!rv.ok) throw new Error(type === 'both' ? `مراجعة: ${rv.error}` : rv.error)
+  const parsed = {}
+  for (const [k, sg] of Object.entries(segs)) {
+    const v = validateRange(sg.surah, sg.from, sg.to)
+    if (!v.ok) throw new Error(Object.keys(segs).length > 1 ? `${HIFZ_TRACKS[k]}: ${v.error}` : v.error)
+    parsed[k] = { ...sg, count: v.count, range: segmentRange(sg) }
   }
 
   const today = todayKey()
   const ac = student.academicInfo || {}
   const hm = Math.max(0, Number(hifzMistakes) || 0)
   const tm = Math.max(0, Number(tajweedMistakes) || 0)
+  const km = Math.max(0, Number(tashkeelMistakes) || 0)
   const cleanHw = (homework || '').trim()
+  const progress = (await db().get(COL.HIFZ_PROGRESS, student.id)) || {}
+  const plan = planOf(progress)
+  const accepted = !parsed.new || isAccepted(hm, plan)
 
   const rec = {
     studentId: student.id, studentName: student.personalInfo.fullName, parentId: student.parentId || '',
     groupId: ac.groupId || '', teacherId: ac.teacherId || '', teacherName: ac.teacherName || '', recordedBy: actor.uid,
-    date: today, type, masteryLevel: mastery, hifzMistakes: hm, tajweedMistakes: tm,
+    date: today, type: input.type || Object.keys(parsed).join('+'), tracks: Object.keys(parsed),
+    status: accepted ? 'accepted' : 'repeat',
+    masteryLevel: mastery, hifzMistakes: hm, tajweedMistakes: tm, tashkeelMistakes: km,
     homework: cleanHw, teacherNotes: (notes || '').trim(), createdAt: op.now()
   }
-  if (hasNew) rec.newMemorization = { surahName: surah, fromAyah: from, toAyah: to, ayahCount: nv.count, masteryLevel: mastery, repetitions: repetitions || 1 }
-  if (hasRev) rec.revision = { surahName: rSurah, fromAyah: rFrom, toAyah: rTo, ayahCount: rv.count, masteryLevel: mastery }
+  const segDoc = (p) => ({ surahName: p.surah, fromAyah: p.from, toAyah: p.to, ayahCount: p.count, masteryLevel: mastery })
+  if (parsed.new) rec.newMemorization = { ...segDoc(parsed.new), repetitions: parsed.new.repetitions || 1 }
+  if (parsed.near) rec.nearReview = segDoc(parsed.near)
+  if (parsed.far) rec.revision = segDoc(parsed.far)
+
+  // Progress: memorized ranges grow only with an accepted "new"; reviews stamp their juz.
+  const pPatch = { studentId: student.id, parentId: student.parentId || '', lastUpdated: op.now(), lastSession: today }
+  let ranges = progress.ranges || []
+  let added = 0
+  if (parsed.new) {
+    if (accepted) {
+      const before = countAyahs(ranges)
+      ranges = addRange(ranges, parsed.new.range)
+      added = countAyahs(ranges) - before
+      pPatch.ranges = ranges
+      pPatch.lastNew = parsed.new.range
+      pPatch.pendingRepeat = null
+      pPatch.totalMemorized = op.inc(added)
+      const sessions = (Number(progress.newSessions) || 0) + 1
+      pPatch.newSessions = sessions
+      pPatch.pace = Math.round((((Number(progress.pace) || parsed.new.count) * (sessions - 1)) + parsed.new.count) / sessions * 10) / 10
+    } else {
+      pPatch.pendingRepeat = { surah: parsed.new.surah, from: parsed.new.from, to: parsed.new.to }
+    }
+  }
+  const reviewed = { ...(progress.juzReviewedAt || {}) }
+  const weak = new Set(progress.weakJuz || [])
+  for (const k of ['near', 'far']) {
+    if (!parsed[k]) continue
+    const j = juzOf(parsed[k].range.s)
+    reviewed[j] = today
+    if (mastery === 'weak' || mastery === 'average') weak.add(j)
+    else if (mastery === 'excellent') weak.delete(j)
+  }
+  if (parsed.near || parsed.far) { pPatch.juzReviewedAt = reviewed; pPatch.weakJuz = [...weak].sort((a, b) => a - b) }
 
   const b = db().batch()
   b.add(COL.HIFZ_RECORDS, rec)
+  b.set(COL.HIFZ_PROGRESS, student.id, pPatch, { merge: true })
 
   const studentPatch = { 'academicInfo.lastSession': today, 'academicInfo.lastMastery': mastery }
   if (cleanHw) {
     studentPatch['academicInfo.lastHomework'] = cleanHw
     studentPatch['academicInfo.lastHomeworkDate'] = today
   }
-  if (hasNew) {
-    b.set(COL.HIFZ_PROGRESS, student.id, { studentId: student.id, parentId: student.parentId || '', totalMemorized: op.inc(nv.count), lastUpdated: op.now() }, { merge: true })
-    studentPatch['academicInfo.totalMemorized'] = op.inc(nv.count)
-    studentPatch['academicInfo.lastHifz'] = { surahName: surah, fromAyah: from, toAyah: to, date: today, masteryLevel: mastery }
+  if (parsed.new && accepted) {
+    const n = parsed.new
+    studentPatch['academicInfo.totalMemorized'] = op.inc(added)
+    studentPatch['academicInfo.currentJuz'] = juzCoverage(ranges).filter((c) => c.pct >= 0.999).length
+    studentPatch['academicInfo.lastHifz'] = { surahName: n.surah, fromAyah: n.from, toAyah: n.to, date: today, masteryLevel: mastery }
   }
   b.update(COL.STUDENTS, student.id, studentPatch)
 
   const parts = []
-  if (hasNew) parts.push(`حفظ ${surah} ${from}–${to}`)
-  if (hasRev) parts.push(`مراجعة ${rSurah} ${rFrom}–${rTo}`)
-  const totalMistakes = hm + tm
+  if (parsed.new) parts.push(`${accepted ? 'حفظ' : 'إعادة حفظ'} ${parsed.new.surah} ${parsed.new.from}–${parsed.new.to}`)
+  if (parsed.near) parts.push(`قريب ${parsed.near.surah} ${parsed.near.from}–${parsed.near.to}`)
+  if (parsed.far) parts.push(`مراجعة ${parsed.far.surah} ${parsed.far.from}–${parsed.far.to}`)
+  const totalMistakes = hm + tm + km
   if (totalMistakes > 0) parts.push(`أخطاء: ${totalMistakes}`)
   if (cleanHw) parts.push(`الواجب: ${cleanHw}`)
   const summary = parts.join(' • ')
@@ -171,7 +222,7 @@ export async function recordHifz(
   }
 
   await b.commit()
-  return (nv?.count || 0) + (rv?.count || 0)
+  return Object.values(parsed).reduce((n, p) => n + p.count, 0)
 }
 
 export const hifzRecordsFor = (studentId) =>

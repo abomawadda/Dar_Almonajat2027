@@ -3,6 +3,9 @@
 export const ROLES = {
   admin:      { label: 'مدير النظام', home: '/dashboard' },
   supervisor: { label: 'مشرف',        home: '/dashboard' },
+  accountant: { label: 'محاسب',       home: '/dashboard' },
+  secretary:  { label: 'سكرتارية',    home: '/dashboard' },
+  examiner:   { label: 'لجنة اختبار', home: '/dashboard' },
   teacher:    { label: 'محفظ',        home: '/dashboard' },
   student:    { label: 'طالب',        home: '/dashboard' },
   parent:     { label: 'ولي أمر',     home: '/dashboard' }
@@ -15,6 +18,7 @@ export function audiencesFor(role) {
   if (isStaffRole(role)) return null // all
   return {
     teacher: ['all', 'teachers'],
+    accountant: ['all'], secretary: ['all'], examiner: ['all', 'teachers'],
     student: ['all', 'students', 'students_parents'],
     parent:  ['all', 'parents', 'students_parents']
   }[role] || ['all']

@@ -18,7 +18,7 @@ export const SERVICES = [
   { id: 'students',     path: '/students',         label: 'الطلبة',          icon: 'users-group-rounded-bold',     tone: 'info',   group: 'admission',  roles: ['admin', 'supervisor', 'teacher'] },
   { id: 'record',       path: '/hifz/record',      label: 'تسجيل تسميع',     icon: 'microphone-3-bold',            tone: 'gold',   group: 'learning',   roles: ['admin', 'supervisor', 'teacher'] },
   { id: 'exams',        path: '/exams',            label: 'الامتحانات',      icon: 'document-add-bold',            tone: 'info',   group: 'learning',   roles: ALL },
-  { id: 'hifzmap',      path: '/hifz-map',         label: 'خريطة الحفظ',     icon: 'map-bold',                     tone: 'gold',   group: 'learning',   roles: ALL, ready: false },
+  { id: 'hifzmap',      path: '/hifz-map',         label: 'خريطة الحفظ',     icon: 'map-bold',                     tone: 'gold',   group: 'learning',   roles: ALL },
   { id: 'schedule',     path: '/schedule',         label: 'الجدول',          icon: 'calendar-bold',                tone: 'info',   group: 'learning',   roles: ALL, ready: false },
   { id: 'attendance',   path: '/attendance',       label: 'حضور الطلبة',     icon: 'checklist-minimalistic-bold',  tone: 'ok',     group: 'discipline', roles: ALL },
   { id: 'staff',        path: '/staff-attendance', label: 'حضور العاملين',   icon: 'user-check-rounded-bold',      tone: 'ok',     group: 'discipline', roles: ['admin', 'supervisor', 'teacher'] },

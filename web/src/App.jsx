@@ -20,6 +20,7 @@ const StudentProfile = lazy(() => import('@/features/students/StudentProfilePage
 const Attendance = lazy(() => import('@/features/attendance/AttendancePage'))
 const StaffAttendance = lazy(() => import('@/features/attendance/StaffAttendancePage'))
 const RecordHifz = lazy(() => import('@/features/hifz/RecordHifzPage'))
+const HifzMap = lazy(() => import('@/features/hifz/HifzMapPage'))
 const Behavior = lazy(() => import('@/features/behavior/BehaviorPage'))
 const Exams = lazy(() => import('@/features/exams/ExamsPage'))
 const NewExam = lazy(() => import('@/features/exams/NewExamPage'))
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/attendance" element={<Guard><Attendance /></Guard>} />
           <Route path="/staff-attendance" element={<Guard><StaffAttendance /></Guard>} />
           <Route path="/hifz/record" element={<Guard><RecordHifz /></Guard>} />
+          <Route path="/hifz-map" element={<Guard><HifzMap /></Guard>} />
           <Route path="/behavior" element={<Guard><Behavior /></Guard>} />
           <Route path="/exams" element={<Guard><Exams /></Guard>} />
           <Route path="/exams/new" element={<Guard><NewExam /></Guard>} />

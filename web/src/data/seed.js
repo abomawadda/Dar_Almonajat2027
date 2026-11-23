@@ -2,6 +2,7 @@
 import { addDays, todayKey } from '@/lib/format'
 
 import BASE from './base.json'
+import { countAyahs, lastJuzRanges } from '@/lib/hifz'
 
 /** Base records (also used by functions/scripts/seed-base.mjs — single source in base.json). */
 export function baseSeed() {
@@ -61,9 +62,9 @@ export async function seedDemo(db) {
     b.set('students', id, {
       status: 'active', parentId, enrollType: 'quran', joinedAt: ago(2000),
       personalInfo: { fullName: name, birthDate: birth, gender: 'ذكر' },
-      academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: juz * 208, level: g.level, ...(studentExtras[id] || {}) }
+      academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: countAyahs(lastJuzRanges(juz)), level: g.level, ...(studentExtras[id] || {}) }
     })
-    b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: juz * 208, juzProgress: [], lastUpdated: ago(24) })
+    b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: countAyahs(lastJuzRanges(juz)), ranges: lastJuzRanges(juz), lastUpdated: ago(24) })
   })
   base.teachers.forEach((x) => b.set('teachers', x.id, strip(x)))
   Object.values(groups).forEach((g) => b.set('groups', g.id, strip(g)))
