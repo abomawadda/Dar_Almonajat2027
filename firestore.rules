@@ -242,18 +242,37 @@ service cloud.firestore {
       allow read:   if hasProfile() && (resource.data.userId in linkedIds() || (isStaff() && resource.data.userId == 'staff'));
       allow create: if isStaff() || isTeacher()
                     || (isParent() && request.resource.data.type == 'excuse' && request.resource.data.isRead == false)
+                    || (isParent() && request.resource.data.type == 'message' && request.resource.data.isRead == false)
                     || ((isParent() || isStudent()) && request.resource.data.type == 'reward'
                         && request.resource.data.userId == 'staff' && request.resource.data.isRead == false);
       allow update: if hasProfile() && (resource.data.userId in linkedIds() || (isStaff() && resource.data.userId == 'staff')) && changesOnly(['isRead']);
       allow delete: if isAdmin();
     }
-    match /messages/{convId} {
-      allow read:  if signedIn() && request.auth.uid in resource.data.participants;
-      allow write: if signedIn() && request.auth.uid in request.resource.data.participants;
-      match /messages/{msgId} {
-        allow read, write: if signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
-      }
+    // Direct messages: participants are inbox keys (parentId, teacherId or 'staff').
+    function myKey() {
+      return isStaff() ? 'staff' : (isTeacher() ? myTeacherId() : (isParent() ? myParentId() : ''));
+    }
+    // Push device tokens: a user registers their own device for their own inbox keys.
+    match /pushTokens/{token} {
+      allow create, update: if hasProfile() && request.resource.data.uid == request.auth.uid
+                            && request.resource.data.keys.hasOnly(linkedIds().concat(isStaff() ? ['staff'] : []));
+      allow delete: if hasProfile() && resource.data.uid == request.auth.uid;
+      allow read:   if false;
+    }
+    match /conversations/{convId} {
+      allow read:   if hasProfile() && myKey() in resource.data.participants;
+      allow create: if hasProfile() && myKey() in request.resource.data.participants
+                    && convId == request.resource.data.participants[0] + '__' + request.resource.data.participants[1];
+      allow update: if hasProfile() && myKey() in resource.data.participants
+                    && request.resource.data.participants == resource.data.participants;
+      allow delete: if false;
+    }
+    match /chatMessages/{msgId} {
+      allow read:   if hasProfile() && myKey() in resource.data.participants;
+      allow create: if hasProfile() && request.resource.data.from == myKey()
+                    && myKey() in request.resource.data.participants
+                    && request.resource.data.text is string && request.resource.data.text.size() <= 1000;
+      allow update, delete: if false;
     }
 
     // ── Finance & settings ──────────────────────────────────────────────────

@@ -23,6 +23,8 @@ export const COL = {
   CIRCULARS: 'circulars',
   NOTIFICATIONS: 'notifications',
   EXCUSES: 'excuses',
+  CONVERSATIONS: 'conversations',
+  CHAT_MESSAGES: 'chatMessages',
   REWARDS: 'rewards',
   REDEMPTIONS: 'redemptions',
   POINTS_LEDGER: 'pointsLedger',

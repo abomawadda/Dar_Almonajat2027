@@ -29,6 +29,7 @@ const VerifyCertificate = lazy(() => import('@/features/recognition/VerifyCertif
 const Announcements = lazy(() => import('@/features/comms/AnnouncementsPage'))
 const Circulars = lazy(() => import('@/features/comms/CircularsPage'))
 const Notifications = lazy(() => import('@/features/comms/NotificationsPage'))
+const Messages = lazy(() => import('@/features/comms/MessagesPage'))
 const Certificates = lazy(() => import('@/features/recognition/CertificatesPage'))
 const Competitions = lazy(() => import('@/features/recognition/CompetitionsPage'))
 const HonorBoard = lazy(() => import('@/features/recognition/HonorBoardPage'))
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/announcements" element={<Guard><Announcements /></Guard>} />
           <Route path="/circulars" element={<Guard><Circulars /></Guard>} />
           <Route path="/notifications" element={<Guard><Notifications /></Guard>} />
+          <Route path="/messages" element={<Guard><Messages /></Guard>} />
           <Route path="/certificates" element={<Guard><Certificates /></Guard>} />
           <Route path="/honor-board" element={<Guard><HonorBoard /></Guard>} />
           <Route path="/rewards" element={<Guard><Rewards /></Guard>} />
