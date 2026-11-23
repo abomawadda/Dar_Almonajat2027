@@ -5,7 +5,7 @@ import { seedDemo } from '@/data/seed'
 import { recordHifz, saveHifzPlan } from '@/services/academic'
 import { TOTAL_AYAHS } from '@/config/quran'
 import {
-  JUZ, ayahIndex, fromIndex, mergeRanges, countAyahs, juzCoverage, juzOf,
+  JUZ, HIZB, pickToRange, pickLabel, rangeToPick, ayahIndex, fromIndex, mergeRanges, countAyahs, juzCoverage, juzOf,
   suggestNew, suggestNear, suggestFar, isAccepted, lastJuzRanges, estimateCompletion
 } from './hifz'
 
@@ -114,5 +114,43 @@ describe('recordHifz — three tracks', () => {
     const before = (await db().get('hifzProgress', 'S6')).ranges
     await recordHifz({ student: st, mastery: 'good', segments: { new: { surah: 'النبأ', from: 1, to: 10 } } }, teacher)
     expect(countAyahs((await db().get('hifzProgress', 'S6')).ranges)).toBe(countAyahs(before))
+  })
+})
+
+describe('mushaf picker units', () => {
+  it('60 contiguous ahzab, odd ones start each juz', () => {
+    expect(HIZB).toHaveLength(60)
+    for (let i = 1; i < 60; i++) expect(HIZB[i].s).toBe(HIZB[i - 1].e + 1)
+    JUZ.forEach((j, i) => { expect(HIZB[i * 2].s).toBe(j.s); expect(HIZB[i * 2 + 1].e).toBe(j.e) })
+  })
+  it('converts juz / hizb / surah / ayahs picks to ranges and labels', () => {
+    expect(pickToRange({ unit: 'juz', from: 30, to: 30 })).toEqual({ s: JUZ[29].s, e: JUZ[29].e })
+    expect(pickToRange({ unit: 'hizb', from: 59, to: 60 })).toEqual({ s: JUZ[29].s, e: TOTAL_AYAHS - 1 })
+    expect(pickToRange({ unit: 'surah', from: 114, to: 112 })).toEqual({ s: ayahIndex('الإخلاص', 1), e: TOTAL_AYAHS - 1 })
+    expect(pickToRange({ unit: 'ayahs', surah: 67, from: 1, to: 10 })).toEqual({ s: ayahIndex('الملك', 1), e: ayahIndex('الملك', 10) })
+    expect(pickToRange({ unit: 'ayahs', surah: 1, from: 1, to: 9 })).toBeNull()
+    expect(pickLabel({ unit: 'juz', from: 29, to: 30 })).toBe('جزء 29 إلى جزء 30')
+    expect(pickLabel({ unit: 'surah', from: 67, to: 67 })).toBe('الملك')
+    expect(rangeToPick({ s: JUZ[27].s, e: JUZ[29].e })).toEqual({ unit: 'juz', from: 28, to: 30 })
+  })
+})
+
+describe('recordHifz — teacher assignment for the next session', () => {
+  beforeEach(async () => { setDb(createMemoryAdapter()); await seedDemo(db()) })
+  it('stores the assignment, sends it as homework, and clears it after the next session', async () => {
+    const st = { id: 'S6', ...(await db().get('students', 'S6')) }
+    await recordHifz({
+      student: st, mastery: 'good',
+      segments: { new: { unit: 'ayahs', surah: 57, from: 1, to: 6 }, far: { unit: 'hizb', from: 59, to: 59 } },
+      assignNext: { new: { unit: 'ayahs', surah: 57, from: 7, to: 12 }, near: { unit: 'surah', from: 57, to: 57 }, far: { unit: 'juz', from: 29, to: 29 } }
+    }, teacher)
+    const p = await db().get('hifzProgress', 'S6')
+    expect(p.assignment.near.label).toBe('الحديد')
+    expect(p.assignment.far).toMatchObject({ unit: 'juz', from: 29, label: 'جزء 29' })
+    expect(p.juzReviewedAt[30]).toBeTruthy()
+    const notifs = await db().list('notifications', { where: [['userId', '==', st.parentId], ['type', '==', 'hifz']] })
+    expect(notifs.some((n) => n.body.includes('جزء 29'))).toBe(true)
+    await recordHifz({ student: st, mastery: 'good', segments: { far: { unit: 'juz', from: 29, to: 29 } } }, teacher)
+    expect((await db().get('hifzProgress', 'S6')).assignment).toBeNull()
   })
 })

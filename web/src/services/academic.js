@@ -6,7 +6,7 @@ import { validateRange } from '@/config/quran'
 import { isStaffRole } from '@/config/roles'
 import { todayKey } from '@/lib/format'
 import { recordScope } from './scope'
-import { DEFAULT_PLAN, addRange, countAyahs, isAccepted, juzCoverage, juzOf, planOf, segmentRange } from '@/lib/hifz'
+import { DEFAULT_PLAN, addRange, countAyahs, fromIndex, isAccepted, juzCoverage, juzOf, pickLabel, pickToRange, planOf, segmentRange } from '@/lib/hifz'
 
 const newestFirst = (a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1)
 const notify = (b, userId, type, title, body) => {
@@ -131,9 +131,19 @@ export async function recordHifz(input, actor) {
 
   const parsed = {}
   for (const [k, sg] of Object.entries(segs)) {
-    const v = validateRange(sg.surah, sg.from, sg.to)
-    if (!v.ok) throw new Error(Object.keys(segs).length > 1 ? `${HIFZ_TRACKS[k]}: ${v.error}` : v.error)
-    parsed[k] = { ...sg, count: v.count, range: segmentRange(sg) }
+    const err = (m) => new Error(Object.keys(segs).length > 1 ? `${HIFZ_TRACKS[k]}: ${m}` : m)
+    if (sg.unit) {
+      // picker value: juz / hizb / surah(s) / ayahs — chosen from mushaf lists
+      const range = pickToRange(sg)
+      if (!range) throw err('اختر المقطع من القوائم')
+      const a = fromIndex(range.s), z = fromIndex(range.e)
+      parsed[k] = { surah: a.surah, from: a.ayah, to: a.surah === z.surah ? z.ayah : a.ayah, toSurah: z.surah, toAyah: z.ayah,
+        count: range.e - range.s + 1, range, label: pickLabel(sg), pick: sg, repetitions: sg.repetitions }
+    } else {
+      const v = validateRange(sg.surah, sg.from, sg.to)
+      if (!v.ok) throw err(v.error)
+      parsed[k] = { ...sg, count: v.count, range: segmentRange(sg), label: `${sg.surah} ${sg.from}–${sg.to}` }
+    }
   }
 
   const today = todayKey()
@@ -141,7 +151,6 @@ export async function recordHifz(input, actor) {
   const hm = Math.max(0, Number(hifzMistakes) || 0)
   const tm = Math.max(0, Number(tajweedMistakes) || 0)
   const km = Math.max(0, Number(tashkeelMistakes) || 0)
-  const cleanHw = (homework || '').trim()
   const progress = (await db().get(COL.HIFZ_PROGRESS, student.id)) || {}
   const plan = planOf(progress)
   const accepted = !parsed.new || isAccepted(hm, plan)
@@ -152,9 +161,10 @@ export async function recordHifz(input, actor) {
     date: today, type: input.type || Object.keys(parsed).join('+'), tracks: Object.keys(parsed),
     status: accepted ? 'accepted' : 'repeat',
     masteryLevel: mastery, hifzMistakes: hm, tajweedMistakes: tm, tashkeelMistakes: km,
-    homework: cleanHw, teacherNotes: (notes || '').trim(), createdAt: op.now()
+    homework: '', teacherNotes: (notes || '').trim(), createdAt: op.now()
   }
-  const segDoc = (p) => ({ surahName: p.surah, fromAyah: p.from, toAyah: p.to, ayahCount: p.count, masteryLevel: mastery })
+  const segDoc = (p) => ({ surahName: p.surah, fromAyah: p.from, toAyah: p.to, ayahCount: p.count, masteryLevel: mastery,
+    label: p.label, s: p.range.s, e: p.range.e, ...(p.toSurah && p.toSurah !== p.surah ? { toSurah: p.toSurah, toSurahAyah: p.toAyah } : {}) })
   if (parsed.new) rec.newMemorization = { ...segDoc(parsed.new), repetitions: parsed.new.repetitions || 1 }
   if (parsed.near) rec.nearReview = segDoc(parsed.near)
   if (parsed.far) rec.revision = segDoc(parsed.far)
@@ -190,6 +200,25 @@ export async function recordHifz(input, actor) {
   }
   if (parsed.near || parsed.far) { pPatch.juzReviewedAt = reviewed; pPatch.weakJuz = [...weak].sort((a, b) => a - b) }
 
+  // The teacher's assignment for the next session (الجديد/القريب/البعيد), recited next time.
+  const next = {}
+  for (const [k, pk] of Object.entries(input.assignNext || {})) {
+    if (!pk) continue
+    const r = pickToRange(pk)
+    if (!r) throw new Error(`واجب ${HIFZ_TRACKS[k]}: اختر المقطع من القوائم`)
+    next[k] = { ...pk, label: pickLabel(pk), s: r.s, e: r.e }
+  }
+  if (Object.keys(next).length) {
+    pPatch.assignment = { ...next, assignedOn: today, assignedBy: actor.uid }
+    rec.assignedNext = Object.fromEntries(Object.entries(next).map(([k, v]) => [k, v.label]))
+  } else {
+    pPatch.assignment = null // the previous assignment was recited in this session
+  }
+  const assignText = Object.entries(next).map(([k, v]) => `${HIFZ_TRACKS[k]}: ${v.label}`).join(' • ')
+
+  const cleanHw = [assignText, (homework || '').trim()].filter(Boolean).join(' • ')
+  rec.homework = cleanHw
+
   const b = db().batch()
   b.add(COL.HIFZ_RECORDS, rec)
   b.set(COL.HIFZ_PROGRESS, student.id, pPatch, { merge: true })
@@ -208,12 +237,12 @@ export async function recordHifz(input, actor) {
   b.update(COL.STUDENTS, student.id, studentPatch)
 
   const parts = []
-  if (parsed.new) parts.push(`${accepted ? 'حفظ' : 'إعادة حفظ'} ${parsed.new.surah} ${parsed.new.from}–${parsed.new.to}`)
-  if (parsed.near) parts.push(`قريب ${parsed.near.surah} ${parsed.near.from}–${parsed.near.to}`)
-  if (parsed.far) parts.push(`مراجعة ${parsed.far.surah} ${parsed.far.from}–${parsed.far.to}`)
+  if (parsed.new) parts.push(`${accepted ? 'حفظ' : 'إعادة حفظ'} ${parsed.new.label}`)
+  if (parsed.near) parts.push(`قريب ${parsed.near.label}`)
+  if (parsed.far) parts.push(`بعيد ${parsed.far.label}`)
   const totalMistakes = hm + tm + km
   if (totalMistakes > 0) parts.push(`أخطاء: ${totalMistakes}`)
-  if (cleanHw) parts.push(`الواجب: ${cleanHw}`)
+  if (cleanHw) parts.push(`واجب الغد: ${cleanHw}`)
   const summary = parts.join(' • ')
 
   notify(b, student.parentId, 'hifz', `تسميع ${student.personalInfo.fullName.split(' ')[0]} — ${MASTERY[mastery]}`, summary)

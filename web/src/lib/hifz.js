@@ -38,6 +38,71 @@ export const JUZ = JUZ_STARTS.map(([sn, a], i) => {
   const e = next ? OFFSETS[next[0] - 1] + next[1] - 2 : TOTAL_AYAHS - 1
   return { n: i + 1, s, e, size: e - s + 1 }
 })
+/** Hizb start points (surah, ayah) — 60 ahzab, two per juz. */
+const HIZB_STARTS = [
+  [1, 1], [2, 75], [2, 142], [2, 203], [2, 253], [3, 15], [3, 93], [3, 171], [4, 24], [4, 88],
+  [4, 148], [5, 27], [5, 82], [6, 36], [6, 111], [7, 1], [7, 88], [7, 171], [8, 41], [9, 34],
+  [9, 93], [10, 26], [11, 6], [11, 84], [12, 53], [13, 19], [15, 1], [16, 51], [17, 1], [17, 99],
+  [18, 75], [20, 1], [21, 1], [22, 1], [23, 1], [24, 21], [25, 21], [26, 111], [27, 56], [28, 51],
+  [29, 46], [31, 22], [33, 31], [34, 24], [36, 28], [37, 145], [39, 32], [40, 41], [41, 47], [43, 24],
+  [46, 1], [48, 18], [51, 31], [55, 1], [58, 1], [62, 1], [67, 1], [72, 1], [78, 1], [87, 1]
+]
+export const HIZB = HIZB_STARTS.map(([sn, a], i) => {
+  const s = OFFSETS[sn - 1] + a - 1
+  const next = HIZB_STARTS[i + 1]
+  const e = next ? OFFSETS[next[0] - 1] + next[1] - 2 : TOTAL_AYAHS - 1
+  return { n: i + 1, s, e }
+})
+const surahRange = (n) => ({ s: OFFSETS[n - 1], e: OFFSETS[n - 1] + SURAHS[n - 1].ayahs - 1 })
+
+/** Units the teacher picks from — everything is a list built on the mushaf, never free typing. */
+export const UNITS = { ayahs: 'آيات', surah: 'سورة', hizb: 'حزب', juz: 'جزء' }
+
+/**
+ * Picker value → global range. Shapes:
+ *   { unit:'ayahs', surah:n, from:a, to:b }          آيات من سورة
+ *   { unit:'surah', from:n, to:m }                    سورة أو عدة سور
+ *   { unit:'hizb',  from:n, to:m } / { unit:'juz', from:n, to:m }
+ * Ranges run in mushaf order whichever end was picked first.
+ */
+export function pickToRange(p) {
+  if (!p) return null
+  const lo = Math.min(Number(p.from), Number(p.to ?? p.from)), hi = Math.max(Number(p.from), Number(p.to ?? p.from))
+  if (!lo) return null
+  if (p.unit === 'ayahs') {
+    const n = Number(p.surah)
+    if (!SURAHS[n - 1] || hi > SURAHS[n - 1].ayahs) return null
+    return { s: OFFSETS[n - 1] + lo - 1, e: OFFSETS[n - 1] + hi - 1 }
+  }
+  const table = p.unit === 'juz' ? JUZ : p.unit === 'hizb' ? HIZB : null
+  if (table) return table[lo - 1] && table[hi - 1] ? { s: table[lo - 1].s, e: table[hi - 1].e } : null
+  if (p.unit === 'surah') return SURAHS[lo - 1] && SURAHS[hi - 1] ? { s: surahRange(lo).s, e: surahRange(hi).e } : null
+  return null
+}
+
+export function pickLabel(p) {
+  if (!p) return ''
+  const a = Number(p.from), b = Number(p.to ?? p.from)
+  const lo = Math.min(a, b), hi = Math.max(a, b)
+  if (p.unit === 'ayahs') return `${SURAHS[p.surah - 1]?.name} ${lo}–${hi}`
+  const name = (n) => (p.unit === 'surah' ? SURAHS[n - 1]?.name : `${UNITS[p.unit]} ${n}`)
+  return lo === hi ? name(lo) : `${p.unit === 'surah' ? 'من ' : ''}${name(lo)} إلى ${p.unit === 'surah' ? '' : UNITS[p.unit] + ' '}${p.unit === 'surah' ? name(hi) : hi}`
+}
+
+/** Best picker shape for an existing global range (used to preload suggestions). */
+export function rangeToPick(r) {
+  if (!r) return null
+  for (const [unit, table] of [['juz', JUZ], ['hizb', HIZB]]) {
+    const i = table.findIndex((x) => x.s === r.s), j = table.findIndex((x) => x.e === r.e)
+    if (i >= 0 && j >= i) return { unit, from: i + 1, to: j + 1 }
+  }
+  const a = fromIndex(r.s), b = fromIndex(r.e)
+  const na = SURAHS.findIndex((x) => x.name === a.surah) + 1, nb = SURAHS.findIndex((x) => x.name === b.surah) + 1
+  if (a.ayah === 1 && b.ayah === SURAHS[nb - 1].ayahs) return { unit: 'surah', from: na, to: nb }
+  // spans surahs mid-way: keep the first surah's part as ayahs
+  return { unit: 'ayahs', surah: na, from: a.ayah, to: na === nb ? b.ayah : SURAHS[na - 1].ayahs }
+}
+
 export const juzOf = (idx) => JUZ.find((j) => idx >= j.s && idx <= j.e)?.n || 1
 
 // ── Ranges ──────────────────────────────────────────────────────────────────

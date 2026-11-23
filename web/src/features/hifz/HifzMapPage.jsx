@@ -90,7 +90,16 @@ export default function HifzMapPage() {
             </Card>
           </Section>
 
-          <Section title="ورد اليوم المقترح">
+          {progress.assignment && (
+            <Section title="الواجب المقرر من المحفظ">
+              <Card className="p-4 space-y-2 text-sm">
+                {Object.keys(HIFZ_TRACKS).filter((k) => progress.assignment[k]).map((k) => (
+                  <KV key={k} label={HIFZ_TRACKS[k]}>{progress.assignment[k].label}</KV>
+                ))}
+              </Card>
+            </Section>
+          )}
+          <Section title="اقتراح الخطة">
             <Card className="p-4 space-y-2 text-sm">
               <KV label={HIFZ_TRACKS.new}>{nw ? `${nw.surah} ${nw.from}–${nw.to}${nw.repeat ? ' (إعادة)' : ''}` : 'أتمّ الحفظ'}</KV>
               <KV label={HIFZ_TRACKS.near}>{nr ? rangeLabel(nr) : '—'}</KV>
