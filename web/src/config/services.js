@@ -33,7 +33,7 @@ export const SERVICES = [
   { id: 'messages',     path: '/messages',         label: 'الرسائل',         icon: 'chat-round-dots-bold',         tone: 'info',   group: 'comms',      roles: ['admin', 'supervisor', 'teacher', 'parent'], badge: 'messages' },
   { id: 'finance',      path: '/finance',          label: 'الماليات والخزينة', icon: 'wallet-money-bold',          tone: 'violet', group: 'admin',      roles: ['admin', 'accountant'] },
   { id: 'payments',     path: '/payments',         label: 'الرسوم والمدفوعات', icon: 'card-bold',                  tone: 'violet', group: 'admin',      roles: ['parent'] },
-  { id: 'reports',      path: '/reports',          label: 'التقارير',        icon: 'chart-2-bold',                 tone: 'bad',    group: 'admin',      roles: STAFF, ready: false },
+  { id: 'reports',      path: '/reports',          label: 'التقارير',        icon: 'chart-2-bold',                 tone: 'bad',    group: 'admin',      roles: ['admin', 'supervisor', 'teacher', 'accountant'] },
   { id: 'settings',     path: '/settings',         label: 'الإعدادات',       icon: 'settings-bold',                tone: 'muted',  group: 'admin',      roles: ALL }
 ]
 

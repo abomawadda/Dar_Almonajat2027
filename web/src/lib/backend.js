@@ -39,10 +39,10 @@ export const setDb = (adapter) => { _db = adapter }
 
 export async function initBackend() {
   if (DATA_MODE === 'demo') {
-    _db = createMemoryAdapter({ storageKey: 'dar.react.demo.eg.v2' })
+    _db = createMemoryAdapter({ storageKey: 'dar.react.demo.eg.v3' })
     if (_db.isEmpty()) {
       const { seedDemo } = await import('../data/seed.js')
-      await seedDemo(_db)
+      await seedDemo(_db, { history: true })
     }
     return { mode: 'demo' }
   }

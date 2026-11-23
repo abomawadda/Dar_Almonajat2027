@@ -16,7 +16,7 @@ export function baseSeed() {
 
 const strip = ({ id, ...rest }) => rest
 
-export async function seedDemo(db) {
+export async function seedDemo(db, { history = false } = {}) {
   const base = baseSeed()
   const t = Date.now()
   const ago = (h) => new Date(t - h * 3600e3).toISOString()
@@ -183,5 +183,35 @@ export async function seedDemo(db) {
     date: twoDaysAgo, groupId: 'G3', groupName: 'حلقة المبتدئين', teacherId: 'T3',
     studentId: 'S6', studentName: 'عبدالرحمن طارق الشناوي', parentId: 'P1', status: 'present', updatedAt: ago(48)
   })
+  if (history) seedHistory(b, students, groups, t)
   await b.commit()
+}
+
+/** ~4 weeks of deterministic attendance + recitation history so reports and maps look real in the demo. */
+function seedHistory(b, students, groups, t) {
+  const SURAH = ['الملك', 'القلم', 'الحاقة', 'المعارج', 'نوح', 'الجن', 'المزمل', 'المدثر']
+  const mastery = ['excellent', 'good', 'excellent', 'average', 'good', 'weak', 'excellent']
+  students.forEach(([id, name, gid, , parentId], si) => {
+    const g = groups[gid]
+    for (let d = 3; d <= 30; d++) {
+      const date = todayKey(new Date(t - d * 864e5))
+      const dow = new Date(t - d * 864e5).getDay()
+      if (dow === 5) continue // Friday off
+      const k = (si * 7 + d * 3) % 17
+      const status = k === 0 || (si === 4 && d % 4 === 0) ? 'absent' : k === 5 ? 'late' : k === 9 ? 'excused' : 'present'
+      const base = { date, groupId: gid, groupName: g.name, teacherId: g.teacherId, studentId: id, studentName: name, parentId }
+      b.set('attendance', `${date}_${id}`, { ...base, status, updatedAt: new Date(t - d * 864e5).toISOString() })
+      if (status === 'absent' || status === 'excused') continue
+      const m = mastery[(si + d) % mastery.length]
+      const sur = SURAH[(d + si) % SURAH.length]
+      const from = 1 + ((d * 5) % 20)
+      b.add('hifzRecords', {
+        ...base, recordedBy: g.teacherId, teacherName: g.teacherName, type: 'new+far', tracks: ['new', 'far'],
+        status: m === 'weak' ? 'repeat' : 'accepted', masteryLevel: m, hifzMistakes: m === 'weak' ? 5 : m === 'average' ? 3 : 1, tajweedMistakes: m === 'excellent' ? 0 : 1,
+        newMemorization: { surahName: sur, fromAyah: from, toAyah: from + 4 + (si % 4), ayahCount: 5 + (si % 4), masteryLevel: m, label: `${sur} ${from}–${from + 4 + (si % 4)}` },
+        revision: { surahName: 'النبأ', fromAyah: 1, toAyah: 40, ayahCount: 40, masteryLevel: m, label: 'النبأ 1–40' },
+        teacherNotes: d % 9 === 0 ? 'أداء طيب، يحتاج تثبيت المتشابهات' : '', createdAt: new Date(t - d * 864e5).toISOString()
+      })
+    }
+  })
 }
