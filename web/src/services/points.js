@@ -10,6 +10,7 @@ export const DEFAULT_POINT_RULES = {
   hifz: { excellent: 10, good: 6, average: 3, weak: 0 }, // per track recited (new / near / far)
   repeat: 0,          // new portion not accepted
   juzComplete: 50,    // completing a whole juz
+  exam: { pass: 15, distinction: 30 }, // passing an exam / passing with ≥ 90%
   attendance: { present: 2, late: 0, excused: 0, absent: -3, early_leave: 0 },
   absenceStreak: 3    // consecutive absences that trigger an alert
 }
@@ -22,7 +23,8 @@ export async function getPointRules() {
   cache = {
     ...DEFAULT_POINT_RULES, ...s,
     hifz: { ...DEFAULT_POINT_RULES.hifz, ...(s.hifz || {}) },
-    attendance: { ...DEFAULT_POINT_RULES.attendance, ...(s.attendance || {}) }
+    attendance: { ...DEFAULT_POINT_RULES.attendance, ...(s.attendance || {}) },
+    exam: { ...DEFAULT_POINT_RULES.exam, ...(s.exam || {}) }
   }
   return cache
 }

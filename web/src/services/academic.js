@@ -322,18 +322,5 @@ export async function addBehavior({ student, type, category, description, points
   await b.commit()
 }
 
-// ── Exams ───────────────────────────────────────────────────────────────────
-export function subscribeExams(actor, cb) {
-  const spec = actor.role === 'teacher' ? { where: [['teacherId', '==', actor.linkedId]] } : {}
-  return db().subscribe(COL.EXAMS, spec, (rows) => cb(rows.sort((a, b) => (a.date > b.date ? 1 : -1))))
-}
-export function createExam(f, group, actor) {
-  if (!f.title?.trim() || !group || !f.date) return Promise.reject(new Error('العنوان والحلقة والتاريخ مطلوبة'))
-  return db().add(COL.EXAMS, {
-    title: f.title.trim(), groupId: group.id, groupName: group.name, teacherId: group.teacherId, teacherName: group.teacherName,
-    date: f.date, time: f.time || '', duration: Number(f.duration) || 60, scope: f.scope || '',
-    totalMarks: Number(f.totalMarks) || 100, passMark: Number(f.passMark) || 60,
-    status: 'scheduled', studentCount: group.studentCount || 0, createdBy: actor.uid, createdAt: op.now()
-  })
-}
-export const deleteExam = (id) => db().remove(COL.EXAMS, id)
+// ── Exams: see ./exams.js ────────────────────────────────────────────────────
+export { subscribeExams, createExam, deleteExam } from './exams'

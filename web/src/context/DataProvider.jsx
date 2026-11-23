@@ -36,7 +36,8 @@ export function DataProvider({ children }) {
     let exams = data.exams
     if (exams && data.students && actor && (actor.role === 'student' || actor.role === 'parent')) {
       const gids = data.students.map((s) => s.academicInfo?.groupId)
-      exams = exams.filter((e) => gids.includes(e.groupId))
+      const sids = data.students.map((s) => s.id)
+      exams = exams.filter((e) => gids.includes(e.groupId) && (!e.studentIds || e.studentIds.some((id) => sids.includes(id))))
     }
     const unread = (data.notifications || []).filter((n) => !n.isRead).length
     const pendingAck = (data.circulars || []).filter((c) => c.requiresAck && !(c.acks || []).includes(actor?.uid)).length

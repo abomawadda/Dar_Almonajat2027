@@ -42,6 +42,7 @@ import IPhoneBold from '~icons/solar/phone-bold'
 import ICalendarAddBold from '~icons/solar/calendar-add-bold'
 import IQrCodeBold from '~icons/solar/qr-code-bold'
 import IGiftBold from '~icons/solar/gift-bold'
+import IRefreshBold from '~icons/solar/refresh-bold'
 import IUserPlusRoundedBold from '~icons/solar/user-plus-rounded-bold'
 import IBook2Bold from '~icons/solar/book-2-bold'
 import IShieldCheckBold from '~icons/solar/shield-check-bold'
@@ -106,6 +107,7 @@ export const ICONS = {
   'calendar-add-bold': ICalendarAddBold,
   'qr-code-bold': IQrCodeBold,
   'gift-bold': IGiftBold,
+  'refresh-bold': IRefreshBold,
   'user-plus-rounded-bold': IUserPlusRoundedBold,
   'book-2-bold': IBook2Bold,
   'shield-check-bold': IShieldCheckBold,

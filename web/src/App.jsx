@@ -24,6 +24,8 @@ const HifzMap = lazy(() => import('@/features/hifz/HifzMapPage'))
 const Behavior = lazy(() => import('@/features/behavior/BehaviorPage'))
 const Exams = lazy(() => import('@/features/exams/ExamsPage'))
 const NewExam = lazy(() => import('@/features/exams/NewExamPage'))
+const ExamDetail = lazy(() => import('@/features/exams/ExamDetailPage'))
+const VerifyCertificate = lazy(() => import('@/features/recognition/VerifyCertificatePage'))
 const Announcements = lazy(() => import('@/features/comms/AnnouncementsPage'))
 const Circulars = lazy(() => import('@/features/comms/CircularsPage'))
 const Notifications = lazy(() => import('@/features/comms/NotificationsPage'))
@@ -59,6 +61,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/apply" element={<PublicApply />} />
+        <Route path="/verify" element={<VerifyCertificate />} />
+        <Route path="/verify/:code" element={<VerifyCertificate />} />
         <Route element={<Private />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -74,6 +78,7 @@ export default function App() {
           <Route path="/behavior" element={<Guard><Behavior /></Guard>} />
           <Route path="/exams" element={<Guard><Exams /></Guard>} />
           <Route path="/exams/new" element={<Guard><NewExam /></Guard>} />
+          <Route path="/exams/:id" element={<Guard><ExamDetail /></Guard>} />
           <Route path="/announcements" element={<Guard><Announcements /></Guard>} />
           <Route path="/circulars" element={<Guard><Circulars /></Guard>} />
           <Route path="/notifications" element={<Guard><Notifications /></Guard>} />

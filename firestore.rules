@@ -183,18 +183,40 @@ service cloud.firestore {
     }
     match /exams/{examId} {
       allow read:   if signedIn();
-      allow create, update: if isStaff() || (isTeacher() && request.resource.data.teacherId == myTeacherId());
-      allow delete: if isAdmin() || (isTeacher() && resource.data.teacherId == myTeacherId());
+      allow create: if isStaff() || (isTeacher() && request.resource.data.teacherId == myTeacherId()
+                                     && request.resource.data.get('kind', 'periodic') == 'periodic');
+      // the group teacher (periodic) or a committee member (official) may publish
+      allow update: if isStaff()
+                    || (isTeacher() && resource.data.status != 'published'
+                        && (resource.data.teacherId == myTeacherId() || myTeacherId() in resource.data.get('committee', []))
+                        && request.resource.data.teacherId == resource.data.teacherId
+                        && request.resource.data.get('committee', []) == resource.data.get('committee', []));
+      allow delete: if isAdmin() || (isTeacher() && resource.data.teacherId == myTeacherId() && resource.data.status != 'published');
     }
     match /examResults/{resId} {
-      allow read:  if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
-      allow write: if isStaff() || isTeacher();
+      allow read:  if isStaff() || isTeacher()
+                   || ((ownsChildRecord() || ownsStudentRecord()) && resource.data.published == true);
+      allow create, update: if (isStaff() || isTeacher()) && (resource == null || resource.data.published != true || changesOnly(['published', 'publishedAt']));
+      allow delete: if isAdmin();
     }
 
     // ── Recognition ─────────────────────────────────────────────────────────
     match /certificates/{certId} {
-      allow read:  if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
-      allow write: if isStaff();
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      // teachers may issue only through publishing an official exam's results
+      allow create: if isStaff() || (isTeacher() && request.resource.data.get('examId', null) != null);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+    // Public verification record: minimal fields only, readable without sign-in.
+    match /certVerify/{code} {
+      allow read:   if true;
+      allow create: if isStaff() || isTeacher();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+    match /counters/{counterId} {
+      allow read, write: if isStaff() || isTeacher();
     }
     match /competitions/{compId} {
       allow read:  if signedIn();
