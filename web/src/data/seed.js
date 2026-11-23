@@ -64,6 +64,9 @@ export async function seedDemo(db) {
       personalInfo: { fullName: name, birthDate: birth, gender: 'ذكر' },
       academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: countAyahs(lastJuzRanges(juz)), level: g.level, ...(studentExtras[id] || {}) }
     })
+    const pts = 40 + juz * 12 + id.charCodeAt(1) * 3
+    const ym = todayKey().slice(0, 7)
+    b.set('pointsBalance', id, { studentId: id, studentName: name, parentId, groupId: gid, groupName: g.name, balance: pts, earned: pts, months: { [ym]: Math.round(pts / 3) } })
     b.set('hifzProgress', id, { studentId: id, parentId, totalMemorized: countAyahs(lastJuzRanges(juz)), ranges: lastJuzRanges(juz), lastUpdated: ago(24) })
   })
   base.teachers.forEach((x) => b.set('teachers', x.id, strip(x)))

@@ -24,4 +24,4 @@ export function audienceScope(actor) {
 }
 
 /** Notification recipients: the auth uid and the linked record id (they may differ). */
-export const recipientIds = (actor) => [...new Set([actor.uid, actor.linkedId].filter(Boolean))]
+export const recipientIds = (actor) => [...new Set([actor.uid, actor.linkedId, isStaffRole(actor.role) ? 'staff' : ''].filter(Boolean))]

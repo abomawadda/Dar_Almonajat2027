@@ -139,6 +139,16 @@ service cloud.firestore {
                    || (isStudent() && studentId == myStudentId());
       allow write: if isStaff() || isTeacher();
     }
+    // Points: append-only ledger + per-student balance (honor board reads balances).
+    match /pointsLedger/{entryId} {
+      allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
+      allow create: if (isStaff() || isTeacher()) && request.resource.data.delta is int;
+      allow update, delete: if false;
+    }
+    match /pointsBalance/{studentId} {
+      allow read:  if signedIn();
+      allow write: if isStaff() || isTeacher();
+    }
     match /behavior/{recId} {
       allow read:   if isStaff() || isTeacher() || ownsChildRecord() || ownsStudentRecord();
       allow create: if isStaff() || isTeacher();
@@ -180,10 +190,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /notifications/{notifId} {
-      allow read:   if hasProfile() && resource.data.userId in linkedIds();
+      allow read:   if hasProfile() && (resource.data.userId in linkedIds() || (isStaff() && resource.data.userId == 'staff'));
       allow create: if isStaff() || isTeacher()
                     || (isParent() && request.resource.data.type == 'excuse' && request.resource.data.isRead == false);
-      allow update: if hasProfile() && resource.data.userId in linkedIds() && changesOnly(['isRead']);
+      allow update: if hasProfile() && (resource.data.userId in linkedIds() || (isStaff() && resource.data.userId == 'staff')) && changesOnly(['isRead']);
       allow delete: if isAdmin();
     }
     match /messages/{convId} {

@@ -23,6 +23,16 @@ function resolve(val, old) {
   }
   return val
 }
+
+/** set(..., {merge:true}) semantics: nested maps are merged, not replaced (as in Firestore). */
+function resolveMerge(val, old) {
+  if (!isOp(val) && val && typeof val === 'object' && !Array.isArray(val) && old && typeof old === 'object' && !Array.isArray(old)) {
+    const o = { ...old }
+    Object.keys(val).forEach((k) => { o[k] = resolveMerge(val[k], old[k]) })
+    return o
+  }
+  return resolve(val, old)
+}
 function setPath(obj, path, val) {
   const parts = path.split('.')
   let o = obj
@@ -80,7 +90,7 @@ export function createMemoryAdapter({ storageKey = null, storage = globalThis.lo
   }
   const writeSet = (c, id, data, opts) => {
     const cur = col(c)[id]
-    if (opts?.merge && cur) Object.keys(data).forEach((k) => setPath(cur, k, data[k]))
+    if (opts?.merge && cur) Object.keys(data).forEach((k) => { cur[k] = resolveMerge(data[k], cur[k]) })
     else store[c][id] = resolve(data, {})
     notify(c)
   }

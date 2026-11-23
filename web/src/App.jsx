@@ -29,6 +29,7 @@ const Circulars = lazy(() => import('@/features/comms/CircularsPage'))
 const Notifications = lazy(() => import('@/features/comms/NotificationsPage'))
 const Certificates = lazy(() => import('@/features/recognition/CertificatesPage'))
 const Competitions = lazy(() => import('@/features/recognition/CompetitionsPage'))
+const HonorBoard = lazy(() => import('@/features/recognition/HonorBoardPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 
 const Loading = () => <div className="pt-20"><Skeleton rows={4} /></div>
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/circulars" element={<Guard><Circulars /></Guard>} />
           <Route path="/notifications" element={<Guard><Notifications /></Guard>} />
           <Route path="/certificates" element={<Guard><Certificates /></Guard>} />
+          <Route path="/honor-board" element={<Guard><HonorBoard /></Guard>} />
           <Route path="/competitions" element={<Guard><Competitions /></Guard>} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Guard><ComingSoon /></Guard>} />

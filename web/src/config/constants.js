@@ -19,6 +19,8 @@ export const COL = {
   ANNOUNCEMENTS: 'announcements',
   CIRCULARS: 'circulars',
   NOTIFICATIONS: 'notifications',
+  POINTS_LEDGER: 'pointsLedger',
+  POINTS_BALANCE: 'pointsBalance',
   PAYMENTS: 'payments',
   EXPENSES: 'expenses',
   SETTINGS: 'settings'

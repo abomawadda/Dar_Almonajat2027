@@ -1,11 +1,12 @@
 // Student attendance, staff attendance, hifz sessions, behavior, exams.
 import { db } from '@/lib/backend'
 import { op } from '@/lib/db/ops'
-import { COL, MASTERY } from '@/config/constants'
+import { ATTENDANCE, COL, MASTERY } from '@/config/constants'
 import { validateRange } from '@/config/quran'
 import { isStaffRole } from '@/config/roles'
 import { todayKey } from '@/lib/format'
 import { recordScope } from './scope'
+import { award, getPointRules } from './points'
 import { DEFAULT_PLAN, addRange, countAyahs, fromIndex, isAccepted, juzCoverage, juzOf, pickLabel, pickToRange, planOf, segmentRange } from '@/lib/hifz'
 
 const newestFirst = (a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1)
@@ -33,6 +34,23 @@ export async function loadAttendanceDay(groupId, date) {
 
 /** One document per student per day (id = date_studentId) → re-saving updates, never duplicates. */
 export async function saveAttendanceDay({ group, date, students, marks, excuses = {}, alreadySaved }, actor) {
+  const rules = await getPointRules()
+  // previous attendance points for this day (re-saving moves only the difference)
+  const prevPts = {}
+  const prevRows = await db().list(COL.POINTS_LEDGER, { where: [['date', '==', date], ['groupId', '==', group.id], ['source', '==', 'attendance']] })
+  prevRows.forEach((r) => { prevPts[r.studentId] = (prevPts[r.studentId] || 0) + (Number(r.delta) || 0) })
+  // recent history to detect consecutive absences
+  const streaks = {}
+  const threshold = Number(rules.absenceStreak) || 0
+  if (threshold > 1) {
+    for (const s of students.filter((x) => (marks[x.id] || 'present') === 'absent')) {
+      const hist = await db().list(COL.ATTENDANCE, { where: [['studentId', '==', s.id]] })
+      const past = hist.filter((r) => r.date < date).sort((a, c) => (a.date < c.date ? 1 : -1))
+      let n = 1
+      for (const r of past) { if (r.status === 'absent') n++; else break }
+      streaks[s.id] = n
+    }
+  }
   const b = db().batch()
   students.forEach((s) => {
     const status = marks[s.id] || 'present'
@@ -49,6 +67,15 @@ export async function saveAttendanceDay({ group, date, students, marks, excuses 
     }
     b.set(COL.ATTENDANCE, `${date}_${s.id}`, doc)
     if (!alreadySaved && status === 'absent') notify(b, s.parentId, 'absence', `غياب ${s.personalInfo.fullName}`, `لم يحضر حصة ${group.name} بتاريخ ${date}`)
+    const want = Number(rules.attendance[status]) || 0
+    const diff = want - (prevPts[s.id] || 0)
+    if (diff) award(b, { student: s, delta: diff, source: 'attendance', reason: `${ATTENDANCE[status]?.label || status} ${date}`, date }, actor)
+    if (streaks[s.id] >= threshold && streaks[s.id] === threshold) {
+      const msg = `غاب ${streaks[s.id]} حصص متتالية حتى ${date}`
+      notify(b, s.parentId, 'absence_streak', `⚠️ غياب متكرر: ${s.personalInfo.fullName}`, `${msg} — نرجو التواصل مع الدار`)
+      notify(b, group.teacherId, 'absence_streak', `غياب متكرر: ${s.personalInfo.fullName}`, msg)
+      b.add(COL.NOTIFICATIONS, { userId: 'staff', audience: 'staff', type: 'absence_streak', title: `غياب متكرر: ${s.personalInfo.fullName}`, body: `${msg} — ${group.name}`, isRead: false, createdAt: op.now() })
+    }
   })
   await b.commit()
   return students.length
@@ -219,8 +246,20 @@ export async function recordHifz(input, actor) {
   const cleanHw = [assignText, (homework || '').trim()].filter(Boolean).join(' • ')
   rec.homework = cleanHw
 
+  const rules = await getPointRules()
+  const juzBefore = juzCoverage(progress.ranges || []).filter((c) => c.pct >= 0.999).length
+  const juzAfter = juzCoverage(ranges).filter((c) => c.pct >= 0.999).length
+  let pts = 0
+  for (const k of Object.keys(parsed)) pts += k === 'new' && !accepted ? Number(rules.repeat) || 0 : Number(rules.hifz[mastery]) || 0
+  rec.points = pts
+
   const b = db().batch()
-  b.add(COL.HIFZ_RECORDS, rec)
+  const recRef = b.add(COL.HIFZ_RECORDS, rec)
+  award(b, { student, delta: pts, source: 'hifz', refId: recRef || '', reason: `تسميع ${Object.keys(parsed).map((k) => HIFZ_TRACKS[k]).join(' + ')} — ${MASTERY[mastery]}`, date: today }, actor)
+  if (juzAfter > juzBefore) {
+    award(b, { student, delta: (juzAfter - juzBefore) * (Number(rules.juzComplete) || 0), source: 'juz', reason: `إتمام ${juzAfter - juzBefore === 1 ? 'جزء' : (juzAfter - juzBefore) + ' أجزاء'} — المجموع ${juzAfter}`, date: today }, actor)
+    notify(b, student.parentId, 'achievement', `🎉 ${student.personalInfo.fullName.split(' ')[0]} أتمّ جزءًا`, `عدد الأجزاء المكتملة: ${juzAfter}`)
+  }
   b.set(COL.HIFZ_PROGRESS, student.id, pPatch, { merge: true })
 
   const studentPatch = { 'academicInfo.lastSession': today, 'academicInfo.lastMastery': mastery }
@@ -273,11 +312,12 @@ export async function addBehavior({ student, type, category, description, points
   const pts = Math.abs(Number(points) || 0) * (type === 'positive' ? 1 : -1)
   const ac = student.academicInfo
   const b = db().batch()
-  b.add(COL.BEHAVIOR, {
+  const behRef = b.add(COL.BEHAVIOR, {
     studentId: student.id, studentName: student.personalInfo.fullName, parentId: student.parentId || '',
     groupId: ac.groupId, teacherId: ac.teacherId, teacherName: actor.role === 'teacher' ? actor.name : ac.teacherName,
     recordedBy: actor.uid, type, category, description: description.trim(), points: pts, notifyParent: !!notifyParent, createdAt: op.now()
   })
+  award(b, { student, delta: pts, source: 'behavior', refId: behRef || '', reason: `${category || ''} — ${description.trim()}`.replace(/^ — /, '') }, actor)
   if (notifyParent) notify(b, student.parentId, 'behavior', `${type === 'positive' ? 'إشادة' : 'ملاحظة سلوك'}: ${student.personalInfo.fullName.split(' ')[0]}`, description.trim())
   await b.commit()
 }
