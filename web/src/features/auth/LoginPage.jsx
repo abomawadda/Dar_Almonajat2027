@@ -7,7 +7,7 @@ import { Button, Field, Icon, Input, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/lib/format'
 
-const DEMO_ROLES = [['admin', 'shield-user-bold'], ['supervisor', 'shield-check-bold'], ['teacher', 'user-speak-bold'], ['parent', 'users-group-rounded-bold'], ['student', 'book-2-bold']]
+const DEMO_ROLES = [['admin', 'shield-user-bold'], ['supervisor', 'shield-check-bold'], ['accountant', 'wallet-money-bold'], ['teacher', 'user-speak-bold'], ['parent', 'users-group-rounded-bold'], ['student', 'book-2-bold']]
 
 export default function LoginPage() {
   const { actor, mode, signIn, signInDemo, resetPassword } = useAuth()

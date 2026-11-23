@@ -28,7 +28,7 @@ export function DataProvider({ children }) {
       subscribeExams(actor, put('exams')),
       subscribeConversations(actor, put('conversations'))
     ]
-    if (isStaffRole(actor.role) || actor.role === 'teacher') subs.push(subscribeTeachers(put('teachers')))
+    if (isStaffRole(actor.role) || actor.role === 'teacher' || actor.role === 'accountant') subs.push(subscribeTeachers(put('teachers')))
     if (isStaffRole(actor.role)) subs.push(subscribeApplications(put('applications')))
     return () => subs.forEach((u) => u && u())
   }, [actor])

@@ -11,7 +11,8 @@ const users = {
   t2: { role: 'teacher', teacherId: 'T2' },
   p1: { role: 'parent', parentId: 'P1' },
   p2: { role: 'parent', parentId: 'P2' },
-  s1: { role: 'student', studentId: 'S1' }
+  s1: { role: 'student', studentId: 'S1' },
+  acc: { role: 'accountant' }
 }
 const as = (uid) => env.authenticatedContext(uid).firestore()
 const anon = () => env.unauthenticatedContext().firestore()
@@ -34,6 +35,10 @@ beforeEach(async () => {
     await setDoc(doc(db, 'certVerify', 'ABCDEFGH'), { serial: 'DAR-2026-0001', studentName: 'محمد', status: 'valid' })
     await setDoc(doc(db, 'examResults', 'E1_S1'), { examId: 'E1', studentId: 'S1', parentId: 'P1', published: false, total: 80 })
     await setDoc(doc(db, 'pointsLedger', 'L1'), { studentId: 'S1', parentId: 'P1', delta: 5 })
+    await setDoc(doc(db, 'invoices', '2026-11_S1'), { studentId: 'S1', parentId: 'P1', amount: 200, paid: 0, status: 'due' })
+    await setDoc(doc(db, 'payments', 'PAY1'), { studentId: 'S1', parentId: 'P1', amount: 200, status: 'valid' })
+    await setDoc(doc(db, 'cashEntries', 'C1'), { direction: 'in', amount: 200 })
+    await setDoc(doc(db, 'teachers', 'T1'), { name: 'الشيخ', salary: 3000 })
     await setDoc(doc(db, 'excuses', 'X1'), { studentId: 'S1', parentId: 'P1', teacherId: 'T1', status: 'pending' })
   })
 })
@@ -83,4 +88,27 @@ test('push tokens: only my own keys', async () => {
   await assertFails(setDoc(doc(as('p1'), 'pushTokens', 'tok3'), { uid: 'p2', keys: ['p1'] }))
   await assertSucceeds(setDoc(doc(as('admin'), 'pushTokens', 'tok4'), { uid: 'admin', keys: ['admin', 'staff'] }))
   await assertFails(getDoc(doc(as('p1'), 'pushTokens', 'tok1')))
+})
+
+test('finance: accountant/admin only; parents see their own invoices & receipts; money records are append-only', async () => {
+  await assertSucceeds(getDoc(doc(as('p1'), 'invoices', '2026-11_S1')))
+  await assertFails(getDoc(doc(as('p2'), 'invoices', '2026-11_S1')))
+  await assertFails(getDoc(doc(as('t1'), 'invoices', '2026-11_S1')))
+  await assertSucceeds(getDoc(doc(as('p1'), 'payments', 'PAY1')))
+  await assertFails(updateDoc(doc(as('p1'), 'invoices', '2026-11_S1'), { paid: 200 }))
+  await assertSucceeds(updateDoc(doc(as('acc'), 'invoices', '2026-11_S1'), { paid: 200, status: 'paid' }))
+  // receipts: only voidable, never edited or deleted
+  await assertFails(updateDoc(doc(as('acc'), 'payments', 'PAY1'), { amount: 20 }))
+  await assertFails(deleteDoc(doc(as('admin'), 'payments', 'PAY1')))
+  await assertSucceeds(updateDoc(doc(as('acc'), 'payments', 'PAY1'), { status: 'voided', voidReason: 'مكرر', voidedBy: 'acc', voidedAt: 1 }))
+  // cash book
+  await assertFails(updateDoc(doc(as('admin'), 'cashEntries', 'C1'), { amount: 1 }))
+  await assertFails(setDoc(doc(as('acc'), 'cashEntries', 'C2'), { direction: 'in', amount: -5 }))
+  await assertSucceeds(setDoc(doc(as('acc'), 'cashEntries', 'C3'), { direction: 'out', amount: 50 }))
+  await assertFails(getDoc(doc(as('t1'), 'cashEntries', 'C1')))
+  // billing profile & salary, nothing else
+  await assertSucceeds(updateDoc(doc(as('acc'), 'students', 'S1'), { fees: { planId: 'F1', discountPercent: 0 } }))
+  await assertFails(updateDoc(doc(as('acc'), 'students', 'S1'), { parentId: 'P2' }))
+  await assertSucceeds(updateDoc(doc(as('acc'), 'teachers', 'T1'), { salary: 3500, salaryUpdatedBy: 'acc' }))
+  await assertFails(updateDoc(doc(as('acc'), 'teachers', 'T1'), { name: 'x' }))
 })

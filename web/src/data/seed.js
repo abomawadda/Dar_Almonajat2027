@@ -60,7 +60,7 @@ export async function seedDemo(db) {
     const g = groups[gid]
     g.studentCount++
     b.set('students', id, {
-      status: 'active', parentId, enrollType: 'quran', joinedAt: ago(2000),
+      status: 'active', parentId, fees: { planId: 'F1', discountPercent: id === 'S6' ? 50 : 0, discountReason: id === 'S6' ? 'أخوة' : '' }, enrollType: 'quran', joinedAt: ago(2000),
       personalInfo: { fullName: name, birthDate: birth, gender: 'ذكر' },
       academicInfo: { groupId: gid, groupName: g.name, teacherId: g.teacherId, teacherName: g.teacherName, currentJuz: juz, totalMemorized: countAyahs(lastJuzRanges(juz)), level: g.level, ...(studentExtras[id] || {}) }
     })
@@ -71,7 +71,10 @@ export async function seedDemo(db) {
   })
   ;[['مصحف التجويد الملوّن', 150, '📖', 5], ['حقيبة الدار', 120, '🎒', 10], ['قلم ومفكرة', 40, '🖊️', null], ['رحلة الأوائل', 400, '🎟️', 3]]
     .forEach(([name, cost, icon, stock], i) => b.set('rewards', `R${i + 1}`, { name, cost, icon, stock, active: true }))
-  base.teachers.forEach((x) => b.set('teachers', x.id, strip(x)))
+  b.set('feePlans', 'F1', { name: 'تحفيظ — شهري', amount: 200, period: 'monthly', active: true })
+  b.set('feePlans', 'F2', { name: 'تحفيظ + حضانة — شهري', amount: 450, period: 'monthly', active: true })
+  const salaries = { T1: 4500, T2: 4000, T3: 3500 }
+  base.teachers.forEach((x) => b.set('teachers', x.id, { ...strip(x), salary: salaries[x.id] || 3000 }))
   Object.values(groups).forEach((g) => b.set('groups', g.id, strip(g)))
   ;[
     ['P1', 'طارق الشناوي', '01000000001', ['S1', 'S6']],

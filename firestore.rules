@@ -28,6 +28,8 @@ service cloud.firestore {
     function isTeacher()    { return role() == 'teacher'; }
     function isStudent()    { return role() == 'student'; }
     function isParent()     { return role() == 'parent'; }
+    function isAccountant() { return role() == 'accountant'; }
+    function isFinance()    { return isAdmin() || isAccountant(); }
 
     // A teacher/parent/student account may point at its record via teacherId/parentId/studentId;
     // otherwise the record id is the auth uid.
@@ -82,9 +84,11 @@ service cloud.firestore {
 
     // ── People & structure ──────────────────────────────────────────────────
     match /students/{studentId} {
-      allow read:   if isStaff() || isTeacher() || ownsChildRecord()
+      allow read:   if isStaff() || isTeacher() || isAccountant() || ownsChildRecord()
                     || (isStudent() && studentId == myStudentId());
       allow create, delete: if isAdmin();
+      // the accountant sets the billing profile (plan + discount) only
+      allow update: if isAccountant() && changesOnly(['fees']);
       // Progress updates from a hifz session: supervisors for any student, teachers only for
       // their own halaqa; neither may move a student to another teacher or group.
       allow update: if isAdmin()
@@ -100,6 +104,7 @@ service cloud.firestore {
     match /teachers/{teacherId} {
       allow read:  if signedIn();
       allow write: if isAdmin();
+      allow update: if isAccountant() && changesOnly(['salary', 'salaryUpdatedBy']);
     }
     match /groups/{groupId} {
       allow read:  if signedIn();
@@ -216,7 +221,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /counters/{counterId} {
-      allow read, write: if isStaff() || isTeacher();
+      allow read, write: if isStaff() || isTeacher() || isAccountant();
     }
     match /competitions/{compId} {
       allow read:  if signedIn();
@@ -241,6 +246,7 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read:   if hasProfile() && (resource.data.userId in linkedIds() || (isStaff() && resource.data.userId == 'staff'));
       allow create: if isStaff() || isTeacher()
+                    || (isAccountant() && request.resource.data.type in ['invoice', 'payment', 'payroll'])
                     || (isParent() && request.resource.data.type == 'excuse' && request.resource.data.isRead == false)
                     || (isParent() && request.resource.data.type == 'message' && request.resource.data.isRead == false)
                     || ((isParent() || isStudent()) && request.resource.data.type == 'reward'
@@ -276,12 +282,49 @@ service cloud.firestore {
     }
 
     // ── Finance & settings ──────────────────────────────────────────────────
+    // ── Finance: append-only money movements; corrections are voids with a reversing cash entry ──
+    match /feePlans/{planId} {
+      allow read:  if signedIn();
+      allow write: if isFinance();
+    }
+    match /invoices/{invId} {
+      allow read:   if isFinance() || ownsChildRecord();
+      allow create, update: if isFinance();
+      allow delete: if false;
+    }
     match /payments/{payId} {
-      allow read:  if isAdmin() || ownsChildRecord();
-      allow write: if isAdmin();
+      allow read:   if isFinance() || ownsChildRecord();
+      allow create: if isFinance() && request.resource.data.status == 'valid';
+      allow update: if isFinance() && resource.data.status == 'valid'
+                    && changesOnly(['status', 'voidReason', 'voidedBy', 'voidedAt']) && request.resource.data.status == 'voided';
+      allow delete: if false;
     }
     match /expenses/{expId} {
-      allow read, write: if isAdmin();
+      allow read:   if isFinance();
+      allow create: if isFinance() && request.resource.data.status == 'valid';
+      allow update: if isFinance() && resource.data.status == 'valid'
+                    && changesOnly(['status', 'voidReason', 'voidedBy', 'voidedAt']) && request.resource.data.status == 'voided';
+      allow delete: if false;
+    }
+    match /donations/{donId} {
+      allow read, create: if isFinance();
+      allow update, delete: if false;
+    }
+    match /payroll/{slipId} {
+      allow read:   if isFinance() || (isTeacher() && resource.data.teacherId == myTeacherId());
+      allow create: if isFinance();
+      allow update: if isFinance() && resource.data.status == 'draft';
+      allow delete: if false;
+    }
+    match /cashEntries/{entryId} {
+      allow read:   if isFinance();
+      allow create: if isFinance() && request.resource.data.direction in ['in', 'out'] && request.resource.data.amount > 0;
+      allow update, delete: if false;
+    }
+    match /cashClosings/{date} {
+      allow read:   if isFinance();
+      allow create: if isFinance();
+      allow update, delete: if false;
     }
     match /settings/{docId} {
       allow read:  if signedIn();

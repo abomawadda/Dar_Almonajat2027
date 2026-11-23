@@ -3,10 +3,10 @@
 //   node scripts/create-user.mjs --role teacher --email t@b.com --password Secret123 --name "الشيخ سعد" --teacher-id T1
 import { admin, args } from './_admin.mjs'
 
-const ROLES = ['admin', 'supervisor', 'teacher']
+const ROLES = ['admin', 'supervisor', 'teacher', 'accountant']
 const a = args()
 if (!ROLES.includes(a.role) || !a.email || !a.name || (!a.password && !a['existing'])) {
-  console.log('الاستخدام: --role admin|supervisor|teacher --email … --password … --name "…" [--teacher-id T1] [--existing]')
+  console.log('الاستخدام: --role admin|supervisor|teacher|accountant --email … --password … --name "…" [--teacher-id T1] [--existing]')
   process.exit(1)
 }
 if (a.role === 'teacher' && !a['teacher-id']) { console.error('✗ المحفظ يحتاج --teacher-id (معرّف مستنده في teachers)'); process.exit(1) }

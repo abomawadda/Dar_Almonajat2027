@@ -28,6 +28,7 @@ export function audiencesFor(role) {
 export const DEMO_USERS = {
   admin:      { uid: 'demo-admin',      displayName: 'أ. محمود العراقي',     role: 'admin' },
   supervisor: { uid: 'demo-supervisor', displayName: 'الأستاذ خالد الشافعي',  role: 'supervisor' },
+  accountant: { uid: 'demo-accountant', displayName: 'أ. هشام عبدالحميد',    role: 'accountant' },
   teacher:    { uid: 'T1', displayName: 'الشيخ سعد المنشاوي',  role: 'teacher', teacherId: 'T1' },
   student:    { uid: 'S1', displayName: 'محمد طارق الشناوي',   role: 'student', studentId: 'S1' },
   parent:     { uid: 'P1', displayName: 'طارق الشناوي',        role: 'parent',  parentId: 'P1' }
